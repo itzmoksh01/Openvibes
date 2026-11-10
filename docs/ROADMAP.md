@@ -4,12 +4,15 @@
 - [x] Evidence-gated Meta Vibes free provider boundary.
 - [x] SQLite job persistence.
 - [x] Prompt structuring and local diagnostics.
-- [x] ComfyUI local API adapter for workflow submission, job polling, output download and queue cancellation.
-- [x] Local ComfyUI setup documentation.
-- [ ] Install dependencies and verify build against current MCP SDK.
+- [x] ComfyUI local API adapter for workflow submission, polling, output download and queue cancellation.
+- [x] One-call local text-to-image using installed standard ComfyUI checkpoints.
+- [x] Automatic MCP client setup for Muse Code, Antigravity, Codex, Claude Code and Zed.
+- [x] Model licensing and video workflow setup documentation.
+- [x] Meta Vibes vs paid Muse Image API feasibility distinction.
+- [ ] Install dependencies and verify build against the current MCP SDK.
 - [ ] MCP Inspector protocol test.
-- [ ] Client-specific official configuration and connection tests.
+- [ ] End-to-end client connection tests on Windows, macOS and Linux.
 - [ ] Test against a live ComfyUI instance and representative image/video API workflows.
 - [ ] Official Meta unattended API/authorization feasibility review.
 - [ ] Real Meta generation tests if Meta authorizes a supported route.
-- [ ] Release automation and verified npm publication.
+- [ ] Verified npm publication and release automation.
