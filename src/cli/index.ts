@@ -48,7 +48,7 @@ function detectClients() {
 function writeJsonConfig(
   filePath: string,
   serverConfig: JsonObject,
-  options: { museSchema?: boolean; rootKey?: string } = {},
+  options: { rootKey?: string } = {},
 ) {
   const rootKey = options.rootKey ?? 'mcpServers';
   fs.mkdirSync(path.dirname(filePath), { recursive: true, mode: 0o700 });
@@ -63,12 +63,6 @@ function writeJsonConfig(
     }
     if (!isObject(parsed)) throw new Error('CONFIG_NOT_OBJECT: ' + filePath);
     config = parsed;
-  }
-  if (options.museSchema) {
-    if (config.schema_version !== undefined && config.schema_version !== 1) {
-      throw new Error('MUSE_SCHEMA_VERSION_UNSUPPORTED: ' + String(config.schema_version));
-    }
-    config.schema_version = 1;
   }
   const servers = config[rootKey] === undefined ? {} : config[rootKey];
   if (!isObject(servers)) throw new Error(rootKey.toUpperCase() + '_NOT_OBJECT: ' + filePath);
@@ -114,9 +108,13 @@ function clientEnvironment(config: ReturnType<typeof getConfig>): Record<string,
 function installMuse(config: ReturnType<typeof getConfig>, entrypoint: string) {
   const file = path.join(process.env.XDG_CONFIG_HOME ?? path.join(os.homedir(), '.config'), 'muse', 'settings.json');
   const result = writeJsonConfig(file, {
-    type: 'stdio', command: process.execPath, args: [entrypoint, 'mcp'],
-    env: clientEnvironment(config), required: false, tool_timeout_sec: 600,
-  }, { museSchema: true });
+    transport: 'stdio',
+    command: process.execPath,
+    args: [entrypoint, 'mcp'],
+    env: clientEnvironment(config),
+    enabled: true,
+    mode: 'optional',
+  }, { rootKey: 'mcp_servers' });
   return { client: 'Muse Code', ...result };
 }
 
