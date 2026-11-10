@@ -63,7 +63,7 @@ Hugging Face Inference Providers currently gives free accounts $0.10/month in cr
 - [Cloudflare Workers AI REST API setup](https://developers.cloudflare.com/workers-ai/get-started/rest-api/)
 - [Cloudflare FLUX.1-schnell model and REST API](https://developers.cloudflare.com/workers-ai/models/flux-1-schnell/)
 - [Cloudflare Aura-1 text-to-speech model](https://developers.cloudflare.com/workers-ai/models/aura-1/)
-- [Cloudflare Llama model catalogue](https://developers.cloudflare.com/workers-ai/models/)
+- [Cloudflare Gemma 4 26B A4B model](https://developers.cloudflare.com/workers-ai/models/gemma-4-26b-a4b-it/)
 
 - [Pollinations open-source repository and unified API](https://github.com/pollinations/pollinations)
 - [Pollinations API quick start](https://github.com/pollinations/pollinations/blob/main/gen.pollinations.ai/src/docs/quick-start.md)
