@@ -68,14 +68,15 @@ export class CloudflareWorkersAiProvider {
       bytes = Buffer.from(await response.arrayBuffer());
     }
     if (!bytes.length) throw new Error('CLOUDFLARE_TTS_EMPTY_AUDIO');
-    const extension = contentType === 'audio/wav' ? '.wav' : contentType === 'audio/ogg' ? '.ogg' : '.mp3';
+    const audioMimeType = contentType.startsWith('audio/') ? contentType : 'audio/mpeg';
+    const extension = audioMimeType === 'audio/wav' ? '.wav' : audioMimeType === 'audio/ogg' ? '.ogg' : '.mp3';
     const folder = path.join(this.outputDir, 'audio');
     await fs.mkdir(folder, { recursive: true, mode: 0o700 });
     const filename = `cloudflare-tts-${randomUUID()}${extension}`;
     const target = path.join(folder, filename);
     await fs.writeFile(target, bytes, { flag: 'wx', mode: 0o600 });
     return {
-      path: target, filename, mimeType: contentType, sizeBytes: bytes.length,
+      path: target, filename, mimeType: audioMimeType, sizeBytes: bytes.length,
       sha256: createHash('sha256').update(bytes).digest('hex'),
     };
   }
