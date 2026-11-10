@@ -161,7 +161,7 @@ server.registerTool(
       provider: cloudflare.id,
       status: process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_API_TOKEN ? 'CONFIGURED' : 'NEEDS_USER_CREDENTIALS',
       modalities: ['text', 'image', 'text-to-speech'],
-      defaultTextModel: '@cf/meta/llama-3.1-8b-instruct',
+      defaultTextModel: '@cf/google/gemma-4-26b-a4b-it',
       defaultImageModel: '@cf/black-forest-labs/flux-1-schnell',
       billing: 'Eligible Workers AI models consume the Free plan 10,000 Neurons/day allowance. Deepgram Aura-1 TTS is separately priced at $0.015 per 1,000 characters; verify current pricing before use.',
     },
@@ -210,10 +210,10 @@ server.registerTool(
 server.registerTool(
   'openvibes_cloudflare_generate_text',
   {
-    description: 'Generate text online using Cloudflare Workers AI. Default is Meta Llama 3.1 8B Instruct. Requires CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN. Cloudflare Free Workers currently includes 10,000 Neurons/day; model usage consumes this allowance.',
+    description: 'Generate text online using Cloudflare Workers AI. Default is Google Gemma 4 26B A4B. Requires CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN. Cloudflare Free Workers currently includes 10,000 Neurons/day; model usage consumes this allowance.',
     inputSchema: z.object({
       prompt: z.string().min(1).max(20000),
-      model: z.string().min(1).max(200).default('@cf/meta/llama-3.1-8b-instruct'),
+      model: z.string().min(1).max(200).default('@cf/google/gemma-4-26b-a4b-it'),
     }),
   },
   async ({ prompt, model }) => {
