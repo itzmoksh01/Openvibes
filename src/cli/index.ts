@@ -6,7 +6,7 @@ import { getConfig } from '../config.js';
 import { Store } from '../database/store.js';
 import { diagnose } from '../services/diagnostics.js';
 
-const usage = "Openvibes CLI\n\nCommands:\n  openvibes setup [--client auto|all|muse|antigravity|codex|claude|zed]\n  openvibes status\n  openvibes doctor\n  openvibes jobs\n  openvibes assets\n  openvibes mcp\n  openvibes auth login\n  openvibes uninstall\n\nEnvironment:\n  COMFYUI_URL             Local ComfyUI base URL\n  OPENVIBES_DATA_DIR      Persistent jobs/assets database directory\n  OPENVIBES_OUTPUT_DIR    Generated media directory\n  OPENVIBES_POLLINATIONS_API_KEY  Optional user-owned hosted inference key (keep secret)\n";
+const usage = "Openvibes CLI\n\nCommands:\n  openvibes setup [--client auto|all|muse|antigravity|codex|claude|zed]\n  openvibes status\n  openvibes doctor\n  openvibes jobs\n  openvibes assets\n  openvibes mcp\n  openvibes auth login\n  openvibes uninstall\n\nEnvironment:\n  COMFYUI_URL             Local ComfyUI base URL\n  OPENVIBES_DATA_DIR      Persistent jobs/assets database directory\n  OPENVIBES_OUTPUT_DIR    Generated media directory\n  OPENVIBES_POLLINATIONS_API_KEY  Optional user-owned hosted inference key (keep secret)\n  CLOUDFLARE_ACCOUNT_ID     Cloudflare Workers AI account ID\n  CLOUDFLARE_API_TOKEN      Cloudflare Workers AI API token (keep secret)\n";
 
 type JsonObject = Record<string, unknown>;
 
