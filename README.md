@@ -63,6 +63,16 @@ Defaults are 768×768, 24 steps and CFG 7. The output is saved under `OPENVIBES_
 
 Video model workflows vary by model and custom nodes. Export the workflow from ComfyUI in **API format**, then ask your agent to call `openvibes_comfy_run_workflow` with that JSON and `kind: "video"` or `"image-to-video"`. Openvibes submits the job, waits, downloads supported image/video outputs, records hashes and keeps the job ID for follow-up.
 
+For a higher-level natural-language video workflow experience, you can optionally install Comfy Org's separate first-party local MCP server:
+
+~~~bash
+pip install comfy-mcp "comfy-cli>=1.14.0"
+comfy install
+comfy launch
+~~~
+
+Register the `comfy-mcp` command as a second STDIO MCP server. Its local route runs on your own hardware; partner-hosted model tools can spend credits, and Comfy Cloud is a separate paid hosted route. Openvibes never silently switches to either. The companion is separately licensed (AGPL-3.0-or-later or commercial); Openvibes does not bundle its code.
+
 See [Free local ComfyUI setup](docs/COMFYUI-LOCAL.md).
 
 ## MCP tools
