@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { readResponseBuffer, readResponseJson, readResponseText } from '../services/http.js';
 
 const API = 'https://api.cloudflare.com/client/v4';
 const MODEL_ID = /^@[a-z0-9-]+\/[a-z0-9._-]+\/[a-z0-9._-]+$/i;
@@ -63,7 +64,7 @@ export class CloudflareWorkersAiProvider {
       body: JSON.stringify({ ...options, text }),
       signal: AbortSignal.timeout(180_000),
     });
-    if (!response.ok) throw new Error(`CLOUDFLARE_TTS_HTTP_${response.status}: ${(await response.text()).slice(0, 1000)}`);
+    if (!response.ok) throw new Error(`CLOUDFLARE_TTS_HTTP_${response.status}: ${(await readResponseText(response, 4096, 'CLOUDFLARE_TTS_ERROR')).slice(0, 1000)}`);
     const contentType = response.headers.get('content-type')?.split(';')[0]?.trim() ?? 'audio/mpeg';
     let bytes: Buffer;
     if (contentType.includes('json')) {
@@ -83,7 +84,7 @@ export class CloudflareWorkersAiProvider {
       }
       bytes = Buffer.from(encoded, 'base64');
     } else {
-      bytes = Buffer.from(await response.arrayBuffer());
+      bytes = await readResponseBuffer(response, 32 * 1024 * 1024, 'CLOUDFLARE_TTS_AUDIO');
     }
     if (!bytes.length) throw new Error('CLOUDFLARE_TTS_EMPTY_AUDIO');
     const audioMimeType = contentType.startsWith('audio/') ? contentType : 'audio/mpeg';
