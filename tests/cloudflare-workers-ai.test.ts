@@ -31,12 +31,12 @@ test('Cloudflare text generation uses the configured account, token and model', 
 test('Cloudflare FLUX base64 image is saved and hashed', async () => {
   const directory = await mkdtemp(path.join(tmpdir(), 'openvibes-cf-'));
   const originalFetch = globalThis.fetch;
-  const bytes = Buffer.from([1, 3, 3, 7]);
+  const bytes = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 1, 3, 3, 7]);
   globalThis.fetch = (async () => Response.json({ success: true, result: { image: bytes.toString('base64') } })) as typeof fetch;
   try {
     const provider = new CloudflareWorkersAiProvider('0123456789abcdef0123456789abcdef', 'cf_test_token', directory);
     const output = await provider.generateImage('a test image');
-    assert.equal(output.mimeType, 'image/jpeg');
+    assert.equal(output.mimeType, 'image/png');\n    assert.ok(output.filename.endsWith('.png'));
     assert.deepEqual(await readFile(output.path), bytes);
     assert.match(output.sha256, /^[a-f0-9]{64}$/);
   } finally {
@@ -52,16 +52,24 @@ test('Cloudflare Aura TTS saves audio output', async () => {
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);
     assert.equal(url.pathname, '/client/v4/accounts/0123456789abcdef0123456789abcdef/ai/run/@cf/deepgram/aura-1');
-    assert.deepEqual(JSON.parse(String(init?.body)), { text: 'Hello world' });
+    assert.deepEqual(JSON.parse(String(init?.body)), { text: 'Hello world', speaker: 'luna' });
     return Response.json({ success: true, result: { audio: bytes.toString('base64') } });
   }) as typeof fetch;
   try {
     const provider = new CloudflareWorkersAiProvider('0123456789abcdef0123456789abcdef', 'cf_test_token', directory);
-    const output = await provider.generateAudio('Hello world');
+    const output = await provider.generateAudio('Hello world', undefined, { text: 'attempted override', speaker: 'luna' });
     assert.equal(output.mimeType, 'audio/mpeg');
     assert.deepEqual(await readFile(output.path), bytes);
   } finally {
     globalThis.fetch = originalFetch;
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+test('Cloudflare rejects model IDs that could alter the API route', async () => {
+  const provider = new CloudflareWorkersAiProvider('0123456789abcdef0123456789abcdef', 'cf_test_token', tmpdir());
+  await assert.rejects(
+    () => provider.generateText('hello', '@cf/meta/model?next=https://attacker.invalid'),
+    /CLOUDFLARE_MODEL_ID_INVALID/,
+  );
 });
