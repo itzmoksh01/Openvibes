@@ -16,6 +16,7 @@ Openvibes is independent and is not affiliated with, endorsed by, sponsored by, 
 | Muse Code configuration | Automated by `openvibes setup` |
 | Antigravity configuration | Automated by `openvibes setup` |
 | Codex configuration | Automated when Codex CLI is installed |
+| Claude Code configuration | Automated when Claude CLI is installed |
 | ComfyUI connection and system check | Implemented |
 | One-call local text-to-image | Implemented; requires a compatible installed checkpoint |
 | Custom ComfyUI image/video workflows | Implemented; requires an API-format workflow |
@@ -36,7 +37,7 @@ openvibes setup --client auto
 openvibes doctor
 ```
 
-The installer backs up existing Muse Code / Antigravity JSON settings before adding the Openvibes MCP entry. Existing unrelated MCP entries are preserved. A conflicting entry named `openvibes` is not overwritten.
+The installer backs up existing Muse Code / Antigravity JSON settings before adding the Openvibes MCP entry. Codex and Claude Code are configured through their official CLIs. Existing unrelated MCP entries are preserved. A conflicting entry named `openvibes` is not overwritten.
 
 For all supported JSON/CLI clients:
 
@@ -91,7 +92,7 @@ See [Free local ComfyUI setup](docs/COMFYUI-LOCAL.md).
 
 ComfyUI and its local MCP integration are open-source. Local model inference has no per-generation API charge, but it uses your own GPU/CPU, RAM, disk space and electricity. Video generation can require substantial VRAM and time. Model weights and custom nodes have their own licenses; check them before commercial use.
 
-Comfy Cloud offers a limited new-user trial (currently advertised as five free runs), but it is a hosted service and is not unlimited free compute. Openvibes does not enable it automatically.
+Comfy Cloud is a separate hosted service and may have trial limits or paid usage. Openvibes does not enable it automatically and the local provider does not send jobs to it.
 
 ## Why Meta Vibes is blocked
 
