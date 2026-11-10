@@ -42,7 +42,7 @@ export class PollinationsProvider {
 
   async generateMedia(kind: 'image' | 'video' | 'audio', prompt: string, model: string, options: Record<string, string | number | boolean> = {}): Promise<HostedMediaResult> {
     const endpoint = new URL(`/${kind}/${encodeURIComponent(prompt)}`, BASE);
-    if (!/^[a-zA-Z0-9._:-]{1,200}$/.test(model)) throw new Error('POLLINATIONS_MODEL_ID_INVALID');
+    if (!/^[a-zA-Z0-9._:/-]{1,200}$/.test(model)) throw new Error('POLLINATIONS_MODEL_ID_INVALID');
     endpoint.searchParams.set('model', model);
     for (const [key, value] of Object.entries(options)) {
       if (key === 'model' || key === 'prompt' || !/^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/.test(key)) {
