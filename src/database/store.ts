@@ -12,7 +12,7 @@ export class Store {
     fs.mkdirSync(path.dirname(absolutePath), { recursive: true, mode: 0o700 });
     this.db = new DatabaseSync(absolutePath);
     this.db.exec('PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON; PRAGMA synchronous=NORMAL;');
-    this.db.exec(\`
+    this.db.exec(`
       CREATE TABLE IF NOT EXISTS jobs (
         id TEXT PRIMARY KEY,
         kind TEXT NOT NULL,
@@ -41,7 +41,7 @@ export class Store {
         created_at TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_assets_created ON assets(created_at DESC);
-    \`);
+    `);
     try {
       fs.chmodSync(absolutePath, 0o600);
     } catch {
