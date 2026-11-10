@@ -90,8 +90,8 @@ test('cancel removes a queued ComfyUI job by its prompt ID', async () => {
 });
 
 test('rejects unsafe ComfyUI URLs and unsafe output paths', () => {
-  assert.throws(() => new ComfyUiLocalProvider('file:///etc/passwd'), /INVALID_COMFYUI_URL/);
-  assert.throws(() => new ComfyUiLocalProvider('http://user:pass@127.0.0.1:8188'), /INVALID_COMFYUI_URL/);
+  assert.equal(new ComfyUiLocalProvider('file:///etc/passwd').configurationError, 'INVALID_COMFYUI_URL');
+  assert.equal(new ComfyUiLocalProvider('http://user:pass@127.0.0.1:8188').configurationError, 'INVALID_COMFYUI_URL');
   assert.throws(() => safeAssetPath('/tmp/openvibes', 'images', '../escape.png'), /INVALID_FILENAME/);
   assert.throws(() => safeAssetPath('/tmp/openvibes', 'images', 'file.exe'), /UNSUPPORTED_MEDIA_EXTENSION/);
 });
