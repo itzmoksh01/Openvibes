@@ -46,7 +46,7 @@ Run only with a user-owned account and an explicit spend limit. Never place secr
 
 - [ ] Update version, changelog and migration notes.
 - [ ] Confirm provider prices, free allowances, model availability and model licenses against current official documentation.
-- [ ] Publish only from a reviewed tag with npm trusted publishing and provenance.
+- [ ] Publish only from a reviewed tag with npm trusted publishing configured; use Node.js 24 and npm 11.5.1 or newer, and verify provenance.
 - [ ] Verify the published tarball installs globally on a clean machine.
 - [ ] Tag the exact tested commit and retain CI evidence.
 - [ ] Publish known limitations and rollback instructions.
