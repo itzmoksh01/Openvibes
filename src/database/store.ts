@@ -1,11 +1,209 @@
-import fs from 'node:fs';import path from 'node:path';import {DatabaseSync} from 'node:sqlite';import {randomUUID} from 'node:crypto';import type {AssetRecord,JobKind,JobRecord,JobState} from '../types.js';
-export class Store {private readonly db:DatabaseSync;constructor(databasePath:string){fs.mkdirSync(path.dirname(databasePath),{recursive:true,mode:0o700});this.db=new DatabaseSync(databasePath);this.db.exec('PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON;');this.db.exec(`CREATE TABLE IF NOT EXISTS jobs(id TEXT PRIMARY KEY,kind TEXT NOT NULL,state TEXT NOT NULL,provider TEXT NOT NULL,prompt TEXT NOT NULL,optimized_prompt TEXT NOT NULL,input_json TEXT NOT NULL,output_json TEXT,error_code TEXT,error_message TEXT,created_at TEXT NOT NULL,updated_at TEXT NOT NULL);CREATE INDEX IF NOT EXISTS idx_jobs_created ON jobs(created_at DESC);CREATE INDEX IF NOT EXISTS idx_jobs_state ON jobs(state);CREATE TABLE IF NOT EXISTS assets(id TEXT PRIMARY KEY,job_id TEXT NOT NULL REFERENCES jobs(id),filename TEXT NOT NULL,mime_type TEXT NOT NULL,size_bytes INTEGER NOT NULL,sha256 TEXT NOT NULL,path TEXT NOT NULL,metadata_json TEXT NOT NULL,created_at TEXT NOT NULL);CREATE INDEX IF NOT EXISTS idx_assets_created ON assets(created_at DESC);`);}
-createJob(input:{kind:JobKind;state:JobState;provider:string;prompt:string;optimizedPrompt:string;input:unknown;errorCode?:string;errorMessage?:string}):JobRecord{const now=new Date().toISOString();const row:JobRecord={id:randomUUID(),kind:input.kind,state:input.state,provider:input.provider,prompt:input.prompt,optimizedPrompt:input.optimizedPrompt,inputJson:JSON.stringify(input.input)??'null',outputJson:null,errorCode:input.errorCode??null,errorMessage:input.errorMessage??null,createdAt:now,updatedAt:now};this.db.prepare('INSERT INTO jobs(id,kind,state,provider,prompt,optimized_prompt,input_json,output_json,error_code,error_message,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)').run(row.id,row.kind,row.state,row.provider,row.prompt,row.optimizedPrompt,row.inputJson,row.outputJson,row.errorCode,row.errorMessage,row.createdAt,row.updatedAt);return row;}
-updateJob(id:string,state:JobState,output?:unknown,errorCode?:string,errorMessage?:string):void{this.db.prepare('UPDATE jobs SET state=?,output_json=COALESCE(?,output_json),error_code=?,error_message=?,updated_at=? WHERE id=?').run(state,output===undefined?null:(JSON.stringify(output)??'null'),errorCode??null,errorMessage??null,new Date().toISOString(),id);}
-addAsset(input:{jobId:string;filename:string;mimeType:string;sizeBytes:number;sha256:string;path:string;metadata?:unknown}):AssetRecord{const row:AssetRecord={id:randomUUID(),jobId:input.jobId,filename:input.filename,mimeType:input.mimeType,sizeBytes:input.sizeBytes,sha256:input.sha256,path:input.path,metadataJson:JSON.stringify(input.metadata??{})??'{}',createdAt:new Date().toISOString()};this.db.prepare('INSERT INTO assets(id,job_id,filename,mime_type,size_bytes,sha256,path,metadata_json,created_at) VALUES(?,?,?,?,?,?,?,?,?)').run(row.id,row.jobId,row.filename,row.mimeType,row.sizeBytes,row.sha256,row.path,row.metadataJson,row.createdAt);return row;}
-getJob(id:string):JobRecord|undefined{const r=this.db.prepare('SELECT * FROM jobs WHERE id=?').get(id) as Record<string,unknown>|undefined;return r?this.mapJob(r):undefined;}
-getAsset(id:string):AssetRecord|undefined{const r=this.db.prepare('SELECT * FROM assets WHERE id=?').get(id) as Record<string,unknown>|undefined;return r?{id:String(r.id),jobId:String(r.job_id),filename:String(r.filename),mimeType:String(r.mime_type),sizeBytes:Number(r.size_bytes),sha256:String(r.sha256),path:String(r.path),metadataJson:String(r.metadata_json),createdAt:String(r.created_at)}:undefined;}
-listJobs(limit=25):JobRecord[]{return (this.db.prepare('SELECT * FROM jobs ORDER BY created_at DESC LIMIT ?').all(Math.min(Math.max(limit,1),100)) as Record<string,unknown>[]).map(r=>this.mapJob(r));}
-listAssets(limit=50):AssetRecord[]{return (this.db.prepare('SELECT * FROM assets ORDER BY created_at DESC LIMIT ?').all(Math.min(Math.max(limit,1),100)) as Record<string,unknown>[]).map(r=>({id:String(r.id),jobId:String(r.job_id),filename:String(r.filename),mimeType:String(r.mime_type),sizeBytes:Number(r.size_bytes),sha256:String(r.sha256),path:String(r.path),metadataJson:String(r.metadata_json),createdAt:String(r.created_at)}));}
-close():void{this.db.close();}
-private mapJob(r:Record<string,unknown>):JobRecord{return {id:String(r.id),kind:r.kind as JobKind,state:r.state as JobState,provider:String(r.provider),prompt:String(r.prompt),optimizedPrompt:String(r.optimized_prompt),inputJson:String(r.input_json),outputJson:r.output_json==null?null:String(r.output_json),errorCode:r.error_code==null?null:String(r.error_code),errorMessage:r.error_message==null?null:String(r.error_message),createdAt:String(r.created_at),updatedAt:String(r.updated_at)};}}
+import fs from 'node:fs';
+import path from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
+import { randomUUID } from 'node:crypto';
+import type { AssetRecord, JobKind, JobRecord, JobState } from '../types.js';
+
+export class Store {
+  private readonly db: DatabaseSync;
+
+  constructor(databasePath: string) {
+    const absolutePath = path.resolve(databasePath);
+    fs.mkdirSync(path.dirname(absolutePath), { recursive: true, mode: 0o700 });
+    this.db = new DatabaseSync(absolutePath);
+    this.db.exec('PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON; PRAGMA synchronous=NORMAL;');
+    this.db.exec(\`
+      CREATE TABLE IF NOT EXISTS jobs (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL,
+        state TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        prompt TEXT NOT NULL,
+        optimized_prompt TEXT NOT NULL,
+        input_json TEXT NOT NULL,
+        output_json TEXT,
+        error_code TEXT,
+        error_message TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_jobs_created ON jobs(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_jobs_state ON jobs(state);
+      CREATE TABLE IF NOT EXISTS assets (
+        id TEXT PRIMARY KEY,
+        job_id TEXT NOT NULL REFERENCES jobs(id),
+        filename TEXT NOT NULL,
+        mime_type TEXT NOT NULL,
+        size_bytes INTEGER NOT NULL,
+        sha256 TEXT NOT NULL,
+        path TEXT NOT NULL,
+        metadata_json TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_assets_created ON assets(created_at DESC);
+    \`);
+    try {
+      fs.chmodSync(absolutePath, 0o600);
+    } catch {
+      // Windows ACLs govern file access; the parent directory is still private to the user.
+    }
+  }
+
+  createJob(input: {
+    kind: JobKind;
+    state: JobState;
+    provider: string;
+    prompt: string;
+    optimizedPrompt: string;
+    input: unknown;
+    errorCode?: string;
+    errorMessage?: string;
+  }): JobRecord {
+    const now = new Date().toISOString();
+    const row: JobRecord = {
+      id: randomUUID(),
+      kind: input.kind,
+      state: input.state,
+      provider: input.provider,
+      prompt: input.prompt,
+      optimizedPrompt: input.optimizedPrompt,
+      inputJson: JSON.stringify(input.input) ?? 'null',
+      outputJson: null,
+      errorCode: input.errorCode ?? null,
+      errorMessage: input.errorMessage ?? null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.db.prepare(
+      'INSERT INTO jobs(id,kind,state,provider,prompt,optimized_prompt,input_json,output_json,error_code,error_message,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
+    ).run(
+      row.id, row.kind, row.state, row.provider, row.prompt, row.optimizedPrompt,
+      row.inputJson, row.outputJson, row.errorCode, row.errorMessage, row.createdAt, row.updatedAt,
+    );
+    return row;
+  }
+
+  updateJob(
+    id: string,
+    state: JobState,
+    output?: unknown,
+    errorCode?: string,
+    errorMessage?: string,
+  ): void {
+    const result = this.db.prepare(
+      'UPDATE jobs SET state=?,output_json=COALESCE(?,output_json),error_code=?,error_message=?,updated_at=? WHERE id=?',
+    ).run(
+      state,
+      output === undefined ? null : (JSON.stringify(output) ?? 'null'),
+      errorCode ?? null,
+      errorMessage ?? null,
+      new Date().toISOString(),
+      id,
+    );
+    if (Number(result.changes) !== 1) throw new Error('JOB_NOT_FOUND: ' + id);
+  }
+
+  addAsset(input: {
+    jobId: string;
+    filename: string;
+    mimeType: string;
+    sizeBytes: number;
+    sha256: string;
+    path: string;
+    metadata?: unknown;
+  }): AssetRecord {
+    if (
+      !input.filename ||
+      input.filename.length > 255 ||
+      path.basename(input.filename) !== input.filename ||
+      input.filename.includes('/') ||
+      input.filename.includes('\\')
+    ) {
+      throw new Error('INVALID_ASSET_FILENAME');
+    }
+    if (!/^[a-z0-9.+-]+\/[a-z0-9.+-]+$/i.test(input.mimeType)) {
+      throw new Error('INVALID_ASSET_MIME_TYPE');
+    }
+    if (!Number.isSafeInteger(input.sizeBytes) || input.sizeBytes < 1) {
+      throw new Error('INVALID_ASSET_SIZE');
+    }
+    if (!/^[a-f0-9]{64}$/i.test(input.sha256)) throw new Error('INVALID_ASSET_SHA256');
+    if (!path.isAbsolute(input.path)) throw new Error('INVALID_ASSET_PATH');
+
+    const row: AssetRecord = {
+      id: randomUUID(),
+      jobId: input.jobId,
+      filename: input.filename,
+      mimeType: input.mimeType,
+      sizeBytes: input.sizeBytes,
+      sha256: input.sha256,
+      path: input.path,
+      metadataJson: JSON.stringify(input.metadata ?? {}) ?? '{}',
+      createdAt: new Date().toISOString(),
+    };
+    this.db.prepare(
+      'INSERT INTO assets(id,job_id,filename,mime_type,size_bytes,sha256,path,metadata_json,created_at) VALUES(?,?,?,?,?,?,?,?,?)',
+    ).run(
+      row.id, row.jobId, row.filename, row.mimeType, row.sizeBytes,
+      row.sha256, row.path, row.metadataJson, row.createdAt,
+    );
+    return row;
+  }
+
+  getJob(id: string): JobRecord | undefined {
+    const row = this.db.prepare('SELECT * FROM jobs WHERE id=?').get(id) as Record<string, unknown> | undefined;
+    return row ? this.mapJob(row) : undefined;
+  }
+
+  getAsset(id: string): AssetRecord | undefined {
+    const row = this.db.prepare('SELECT * FROM assets WHERE id=?').get(id) as Record<string, unknown> | undefined;
+    return row ? this.mapAsset(row) : undefined;
+  }
+
+  listJobs(limit = 25): JobRecord[] {
+    const bounded = Math.min(Math.max(Math.trunc(limit), 1), 100);
+    return (this.db.prepare('SELECT * FROM jobs ORDER BY created_at DESC LIMIT ?').all(bounded) as Record<string, unknown>[])
+      .map((row) => this.mapJob(row));
+  }
+
+  listAssets(limit = 50): AssetRecord[] {
+    const bounded = Math.min(Math.max(Math.trunc(limit), 1), 100);
+    return (this.db.prepare('SELECT * FROM assets ORDER BY created_at DESC LIMIT ?').all(bounded) as Record<string, unknown>[])
+      .map((row) => this.mapAsset(row));
+  }
+
+  close(): void {
+    this.db.close();
+  }
+
+  private mapJob(row: Record<string, unknown>): JobRecord {
+    return {
+      id: String(row.id),
+      kind: row.kind as JobKind,
+      state: row.state as JobState,
+      provider: String(row.provider),
+      prompt: String(row.prompt),
+      optimizedPrompt: String(row.optimized_prompt),
+      inputJson: String(row.input_json),
+      outputJson: row.output_json == null ? null : String(row.output_json),
+      errorCode: row.error_code == null ? null : String(row.error_code),
+      errorMessage: row.error_message == null ? null : String(row.error_message),
+      createdAt: String(row.created_at),
+      updatedAt: String(row.updated_at),
+    };
+  }
+
+  private mapAsset(row: Record<string, unknown>): AssetRecord {
+    return {
+      id: String(row.id),
+      jobId: String(row.job_id),
+      filename: String(row.filename),
+      mimeType: String(row.mime_type),
+      sizeBytes: Number(row.size_bytes),
+      sha256: String(row.sha256),
+      path: String(row.path),
+      metadataJson: String(row.metadata_json),
+      createdAt: String(row.created_at),
+    };
+  }
+}
