@@ -42,8 +42,14 @@ export class PollinationsProvider {
 
   async generateMedia(kind: 'image' | 'video' | 'audio', prompt: string, model: string, options: Record<string, string | number | boolean> = {}): Promise<HostedMediaResult> {
     const endpoint = new URL(`/${kind}/${encodeURIComponent(prompt)}`, BASE);
+    if (!/^[a-zA-Z0-9._:-]{1,200}$/.test(model)) throw new Error('POLLINATIONS_MODEL_ID_INVALID');
     endpoint.searchParams.set('model', model);
-    for (const [key, value] of Object.entries(options)) endpoint.searchParams.set(key, String(value));
+    for (const [key, value] of Object.entries(options)) {
+      if (key === 'model' || key === 'prompt' || !/^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/.test(key)) {
+        throw new Error(`POLLINATIONS_OPTION_INVALID: ${key}`);
+      }
+      endpoint.searchParams.set(key, String(value));
+    }
 
     const response = await fetch(endpoint, {
       headers: this.headers({ Prefer: 'respond-async' }),
@@ -55,10 +61,14 @@ export class PollinationsProvider {
     let providerJobId: string | undefined;
     if (response.status === 202) {
       const job = await response.json() as { id?: string; status_url?: string; status?: string };
-      if (!job.id) throw new Error('POLLINATIONS_ASYNC_JOB_ID_MISSING');
+      if (typeof job.id !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(job.id)) {
+        throw new Error('POLLINATIONS_ASYNC_JOB_ID_INVALID');
+      }
       providerJobId = job.id;
-      const statusUrl = new URL(job.status_url ?? `/v1/jobs/${job.id}`, BASE);
-      if (statusUrl.origin !== BASE) throw new Error('POLLINATIONS_INVALID_STATUS_URL');
+      const statusUrl = new URL(job.status_url ?? `/v1/jobs/${encodeURIComponent(job.id)}`, BASE);
+      if (statusUrl.origin !== BASE || statusUrl.protocol !== 'https:') {
+        throw new Error('POLLINATIONS_INVALID_STATUS_URL');
+      }
       let status = job.status ?? 'pending';
       const deadline = Date.now() + 15 * 60_000;
       while (status !== 'succeeded') {
@@ -70,7 +80,7 @@ export class PollinationsProvider {
         const body = await check.json() as { status?: string };
         status = body.status ?? 'pending';
       }
-      mediaResponse = await fetch(new URL(`/v1/jobs/${job.id}/result`, BASE), {
+      mediaResponse = await fetch(new URL(`/v1/jobs/${encodeURIComponent(job.id)}/result`, BASE), {
         headers: this.headers(), signal: AbortSignal.timeout(180_000),
       });
     }
