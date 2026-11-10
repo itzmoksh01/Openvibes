@@ -177,7 +177,6 @@ function installZed(config: ReturnType<typeof getConfig>, entrypoint: string) {
     command: process.execPath,
     args: [entrypoint, 'mcp'],
     env: clientEnvironment(config),
-    timeout: 600,
   }, { rootKey: 'context_servers' });
   return { client: 'Zed', ...result };
 }
