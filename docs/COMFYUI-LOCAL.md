@@ -90,4 +90,4 @@ As a rough guide from Comfy's current MCP documentation, a PC with a dedicated G
 
 ## API behavior
 
-Openvibes uses ComfyUI's documented `POST /prompt`, `GET /history/{prompt_id}`, `GET /view`, and `GET /system_stats` endpoints. Advanced/video workflows are supplied by the user/agent as API-format JSON; Openvibes does not guess model-specific node IDs or silently fabricate a custom workflow. The built-in image tool constructs only the standard checkpoint-based image graph. Outputs are saved locally and include SHA-256 hashes.
+Openvibes uses ComfyUI's documented `GET /system_stats`, `GET /queue`, `GET /models/checkpoints`, `POST /prompt`, `GET /history/{prompt_id}`, and `GET /view` routes. Cancellation checks the queue first, then uses `POST /queue` to remove a pending prompt or `POST /interrupt` only when the requested prompt is the active job. Advanced/video workflows are supplied by the user/agent as API-format JSON; Openvibes does not guess model-specific node IDs or silently fabricate a custom workflow. The built-in image tool constructs only the standard checkpoint-based image graph. Outputs are saved locally and include SHA-256 hashes.
