@@ -6,8 +6,7 @@ Openvibes supports online inference through Pollinations' hosted generation API.
 
 1. Create your own key at https://enter.pollinations.ai/keys.
 2. Give it only the model categories you intend to use and set a conservative spending budget/expiry in the provider dashboard.
-3. Set `OPENVIBES_POLLINATIONS_API_KEY` in the environment inherited by Muse Code, Claude Code, Codex, Antigravity or Zed **before launching the MCP host**.
-4. Restart the coding agent and call `openvibes_hosted_list_models`.
+3. Set `OPENVIBES_POLLINATIONS_API_KEY` in the environment inherited by Muse Code, Claude Code, Codex, Antigravity or Zed **before launching the MCP host**. Examples:\n\n   macOS/Linux (from a terminal): `export OPENVIBES_POLLINATIONS_API_KEY='sk_…'`\n\n   Windows PowerShell (current session): `$env:OPENVIBES_POLLINATIONS_API_KEY='sk_…'`\n\n   For desktop-launched clients, configure the variable in your operating system's user environment and fully restart the client.\n4. Restart the coding agent and call `openvibes_hosted_list_models`.
 
 Never paste a secret key into a chat prompt, source file, issue, commit, or publicly shared MCP configuration. The key is not copied into Openvibes client setup files. Environment variables are the current credential mechanism; a future release may add an OS-keychain-backed OAuth flow after registering an official Pollinations Connect application.
 
