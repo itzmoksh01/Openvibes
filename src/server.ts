@@ -15,7 +15,7 @@ const metaVibes = new MetaVibesFreeProvider();
 const comfy = new ComfyUiLocalProvider(process.env.COMFYUI_URL ?? 'http://127.0.0.1:8188', config.outputDir);
 const server = new McpServer({ name: 'openvibes', version: '0.3.0' });
 const text = (value: unknown) => ({
-  content: [{ type: 'text' as const, text: JSON.stringify(value, null, 2) }],
+  content: [{ type: 'text' as const, text: JSON.stringify(value, null, 2) ?? String(value) }],
 });
 
 const generationSchema = z.object({
