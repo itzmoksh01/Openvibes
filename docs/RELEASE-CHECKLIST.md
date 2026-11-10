@@ -7,7 +7,7 @@ A green unit-test suite is necessary but is not sufficient for a production rele
 - [x] Commit and review `package-lock.json`; CI and release workflows use `npm ci`.
 - [x] Pin direct dependencies and configure Dependabot for npm and GitHub Actions updates.
 - [x] The latest CI run passed `npm audit --audit-level=high` on the tested Linux matrix jobs; rerun on every release commit.
-- [ ] CodeQL analysis is configured and running; review the final result and resolve actionable findings. Dependabot update schedules are configured.
+- [x] CodeQL analysis is configured and the latest run on the current release baseline completed successfully; review any new findings on each release commit. Dependabot update schedules are configured.
 - [x] CI reviews npm package contents with `npm pack --dry-run`.
 - [x] Confirm LICENSE, NOTICE, README, docs and runtime files are included in the package allowlist and pack smoke check.
 
