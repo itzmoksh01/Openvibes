@@ -8,7 +8,7 @@
 
 Meta's Vibes product page describes creating expressive AI-generated videos, animating user images, editing/restyling, and remixing. Meta's September 25, 2025 announcement describes Vibes as a short-form AI-generated video creation and sharing experience in Meta AI and meta.ai.
 
-These are consumer product capabilities. They do not establish that an ordinary free Vibes account has a supported public API, OAuth scope, programmatic job submission endpoint, result retrieval endpoint, or permission for unattended browser automation.
+These are consumer product capabilities. They do not establish that an ordinary free Vibes account has a supported public API, OAuth scope, programmatic job submission endpoint, result retrieval endpoint, or permission for unattended browser automation. Meta's current Meta AI FAQ describes everyday use as free but says some compute-intensive features have daily/monthly usage limits and may offer a subscription when the free limit is reached; this does not establish unlimited Vibes generation.
 
 ## Evidence
 
@@ -16,6 +16,8 @@ These are consumer product capabilities. They do not establish that an ordinary 
 |---|---|---|
 | [Meta Vibes product page](https://ai.meta.com/meta-ai/vibes/) | Consumer creation, image animation, editing/restyling and remix features | Public developer API, free-plan API entitlement, automation permission, job/result schemas |
 | [Meta announcement, 2025-09-25](https://about.fb.com/news/2025/09/introducing-vibes-ai-videos/) | Vibes launched as a creation and sharing experience in Meta AI and meta.ai | An MCP integration or unattended API |
+| [Meta AI FAQ](https://ai.meta.com/meta-ai/assistant/) | Everyday assistant use is free; some compute-intensive features have daily/monthly usage limits | Unlimited Vibes generations or a free Vibes API |
+| [Meta developer catalogue](https://ai.meta.com/llama/) | Meta separately lists Muse Image on Meta Model API at US$0.01/image | A public Vibes video API or use of the consumer Vibes free-plan entitlement |
 | [Meta Model API terms](https://dev.meta.ai/legal/terms-of-service) | Separate terms apply to the Meta Model API | Does not grant Vibes consumer-account access or free Vibes video generation |
 
 ## Important distinction: Muse Image is not Meta Vibes Free
