@@ -531,6 +531,7 @@ server.registerTool(
       ...diagnose(config),
       providers: {
         metaVibes: (await metaVibes.getCapabilities()).status,
+        hostedPollinations: { configured: Boolean(process.env.OPENVIBES_POLLINATIONS_API_KEY), provider: pollinations.id, secretValueExposed: false },
         comfyUiLocal: comfyUi,
       },
     });
