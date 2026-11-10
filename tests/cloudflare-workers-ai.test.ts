@@ -36,7 +36,8 @@ test('Cloudflare FLUX base64 image is saved and hashed', async () => {
   try {
     const provider = new CloudflareWorkersAiProvider('0123456789abcdef0123456789abcdef', 'cf_test_token', directory);
     const output = await provider.generateImage('a test image');
-    assert.equal(output.mimeType, 'image/png');\n    assert.ok(output.filename.endsWith('.png'));
+    assert.equal(output.mimeType, 'image/png');
+    assert.ok(output.filename.endsWith('.png'));
     assert.deepEqual(await readFile(output.path), bytes);
     assert.match(output.sha256, /^[a-f0-9]{64}$/);
   } finally {
