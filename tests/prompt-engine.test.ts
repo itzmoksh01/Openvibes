@@ -1,0 +1,3 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {optimizePrompt} from '../src/services/prompt-engine.js';
+test('structures video prompt fields',()=>{const r=optimizePrompt('video',{prompt:'A warrior rides a horse',camera_movement:'slow tracking',lighting:'golden hour',duration:10});assert.match(r,/A warrior rides a horse/);assert.match(r,/Camera movement: slow tracking/);assert.match(r,/Requested duration/);});
+test('image-to-video includes reference preservation guidance',()=>{assert.match(optimizePrompt('image-to-video',{prompt:'Animate portrait'}),/Preserve the reference image subject/);});
