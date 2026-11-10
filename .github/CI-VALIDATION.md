@@ -1,1 +1,0 @@
-Temporary validation-only file. This branch exists solely to exercise the repository CI workflow against the current main tree. It is not intended to be merged.
