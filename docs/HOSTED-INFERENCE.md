@@ -2,7 +2,7 @@
 
 Openvibes supports online inference through Pollinations' hosted generation API. Model weights run on provider infrastructure; end users do not need a local GPU, ComfyUI, Python environment or downloaded checkpoints.
 
-## Set up once
+## Best no-local-install starting point: Cloudflare Workers AI\n\nCloudflare Workers AI is the first option to try when you want a real hosted free allowance. Its current Free Workers plan includes 10,000 Neurons per day, reset at 00:00 UTC. Openvibes includes online tools for Meta Llama 3.1 8B text generation and FLUX.1-schnell image generation. These are hosted model inference calls; no model files or local GPU are required. The free allowance is shared across Workers AI requests and is not unlimited.\n\n1. Create a Cloudflare account and open Workers AI → Use REST API.\n2. Copy the Account ID and create a Workers AI API token with Workers AI Read and Edit permissions.\n3. Set `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` in the environment inherited by your MCP host.\n4. Restart the coding agent and call `openvibes_cloudflare_generate_text` or `openvibes_cloudflare_generate_image`.\n\nDefault models: `@cf/meta/llama-3.1-8b-instruct` and `@cf/black-forest-labs/flux-1-schnell`. FLUX.1-schnell is a 12B hosted text-to-image model; its Cloudflare model page documents the REST API and base64 image response.\n\nCloudflare's catalogue also lists audio models, but the current Openvibes Cloudflare adapter intentionally exposes only the verified text and image routes. Use Pollinations for model-catalogued audio/video generation where account balance and model availability permit.\n\n## Set up Pollinations for video/audio and wider model choice
 
 1. Create your own key at https://enter.pollinations.ai/keys.
 2. Give it only the model categories you intend to use and set a conservative spending budget/expiry in the provider dashboard.
@@ -37,7 +37,7 @@ Cloudflare Workers AI currently advertises 10,000 Neurons per day on its Free Wo
 
 Hugging Face Inference Providers currently gives free accounts $0.10/month in credits, subject to change. That is useful for testing but not a dependable free video-generation backend.
 
-## Official references
+## Official references\n\n- [Cloudflare Workers AI free daily allocation](https://developers.cloudflare.com/workers-ai/platform/pricing/)\n- [Cloudflare Workers AI REST API setup](https://developers.cloudflare.com/workers-ai/get-started/rest-api/)\n- [Cloudflare FLUX.1-schnell model and REST API](https://developers.cloudflare.com/workers-ai/models/flux-1-schnell/)\n- [Cloudflare Llama model catalogue](https://developers.cloudflare.com/workers-ai/models/)
 
 - [Pollinations open-source repository and unified API](https://github.com/pollinations/pollinations)
 - [Pollinations API quick start](https://github.com/pollinations/pollinations/blob/main/gen.pollinations.ai/src/docs/quick-start.md)
