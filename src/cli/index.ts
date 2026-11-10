@@ -121,8 +121,8 @@ function installMuse(config: ReturnType<typeof getConfig>, entrypoint: string) {
 function installAntigravity(config: ReturnType<typeof getConfig>, entrypoint: string) {
   const file = path.join(os.homedir(), '.gemini', 'config', 'mcp_config.json');
   const result = writeJsonConfig(file, {
-    type: 'stdio', command: process.execPath, args: [entrypoint, 'mcp'],
-    env: clientEnvironment(config),
+    command: process.execPath, args: [entrypoint, 'mcp'],
+    env: clientEnvironment(config), timeoutSeconds: 600,
   });
   return { client: 'Antigravity', ...result };
 }
@@ -177,6 +177,7 @@ function installZed(config: ReturnType<typeof getConfig>, entrypoint: string) {
     command: process.execPath,
     args: [entrypoint, 'mcp'],
     env: clientEnvironment(config),
+    timeout: 600,
   }, { rootKey: 'context_servers' });
   return { client: 'Zed', ...result };
 }
