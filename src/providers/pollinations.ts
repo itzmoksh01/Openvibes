@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { readResponseBuffer, readResponseJson, readResponseText } from '../services/http.js';
 
 const BASE = 'https://gen.pollinations.ai';
 
@@ -55,12 +56,12 @@ export class PollinationsProvider {
       headers: this.headers({ Prefer: 'respond-async' }),
       signal: AbortSignal.timeout(180_000),
     });
-    if (!response.ok) throw new Error(`POLLINATIONS_${kind.toUpperCase()}_HTTP_${response.status}: ${(await response.text()).slice(0, 1000)}`);
+    if (!response.ok) throw new Error(`POLLINATIONS_${kind.toUpperCase()}_HTTP_${response.status}: ${(await readResponseText(response, 4096, 'POLLINATIONS_MEDIA_ERROR')).slice(0, 1000)}`);
 
     let mediaResponse = response;
     let providerJobId: string | undefined;
     if (response.status === 202) {
-      const job = await response.json() as { id?: string; status_url?: string; status?: string };
+      const job = await readResponseJson<{ id?: string; status_url?: string; status?: string }>(response, 1024 * 1024, 'POLLINATIONS_JOB_RESPONSE');
       if (typeof job.id !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(job.id)) {
         throw new Error('POLLINATIONS_ASYNC_JOB_ID_INVALID');
       }
