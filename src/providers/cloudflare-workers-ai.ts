@@ -46,9 +46,28 @@ export class CloudflareWorkersAiProvider {
       signal: AbortSignal.timeout(180_000),
     });
     if (!response.ok) throw new Error(`CLOUDFLARE_TTS_HTTP_${response.status}: ${(await response.text()).slice(0, 1000)}`);
-    const bytes = Buffer.from(await response.arrayBuffer());
-    if (!bytes.length) throw new Error('CLOUDFLARE_TTS_EMPTY_AUDIO');
     const contentType = response.headers.get('content-type')?.split(';')[0]?.trim() ?? 'audio/mpeg';
+    let bytes: Buffer;
+    if (contentType.includes('json')) {
+      const envelope = await response.json() as {
+        success?: boolean;
+        result?: { audio?: string } | string;
+        errors?: unknown[];
+      };
+      if (envelope.success === false) {
+        throw new Error(`CLOUDFLARE_TTS_FAILED: ${JSON.stringify(envelope.errors ?? []).slice(0, 1000)}`);
+      }
+      const encoded = typeof envelope.result === 'string'
+        ? envelope.result
+        : envelope.result?.audio;
+      if (typeof encoded !== 'string' || !encoded.length) {
+        throw new Error('CLOUDFLARE_TTS_AUDIO_FIELD_MISSING');
+      }
+      bytes = Buffer.from(encoded, 'base64');
+    } else {
+      bytes = Buffer.from(await response.arrayBuffer());
+    }
+    if (!bytes.length) throw new Error('CLOUDFLARE_TTS_EMPTY_AUDIO');
     const extension = contentType === 'audio/wav' ? '.wav' : contentType === 'audio/ogg' ? '.ogg' : '.mp3';
     const folder = path.join(this.outputDir, 'audio');
     await fs.mkdir(folder, { recursive: true, mode: 0o700 });
