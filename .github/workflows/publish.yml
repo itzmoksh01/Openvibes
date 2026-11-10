@@ -16,8 +16,10 @@ jobs:
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
-      - name: Install dependencies
-        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Require committed dependency lockfile
+        run: test -f package-lock.json
+      - name: Install exact locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Validate release
         run: |
           npm run typecheck
