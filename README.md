@@ -60,7 +60,7 @@ Defaults are 768×768, 24 steps and CFG 7. The output is saved under `OPENVIBES_
 
 ## Generate video or use advanced workflows
 
-Video model workflows vary by model and custom nodes. Export the workflow from ComfyUI in **API format**, then ask your agent to call `openvibes_comfy_run_workflow` with that JSON and `kind: "video"` or `"image-to-video"`. Openvibes submits the job, waits, downloads supported image/video outputs, records hashes and keeps the job ID for follow-up.
+Video model workflows vary by model and custom nodes. Export the workflow from ComfyUI in **API format**, then ask your agent to call `openvibes_comfy_run_workflow` with that JSON and `kind: "video"` or `"image-to-video"`. Openvibes submits the job and waits up to 30 seconds by default. If it is still running, it returns a persistent job ID; ask the agent to call `openvibes_wait_for_job` until the job reaches `SAVED`, and it will download outputs and record hashes automatically.
 
 For a higher-level natural-language video workflow experience, you can optionally install Comfy Org's separate first-party local MCP server:
 
@@ -103,7 +103,7 @@ See [Free local ComfyUI setup](docs/COMFYUI-LOCAL.md).
 
 ComfyUI and its local MCP integration are open-source. Local model inference has no per-generation API charge, but it uses your own GPU/CPU, RAM, disk space and electricity. Video generation can require substantial VRAM and time. Model weights and custom nodes have their own licenses; check them before commercial use.
 
-Comfy Cloud is a separate hosted service and may have trial limits or paid usage. Openvibes does not enable it automatically and the local provider does not send jobs to it.
+Comfy Cloud is a separate hosted service. Its official MCP docs currently advertise five free runs for new users; generation beyond the trial requires an active subscription. This is a limited trial, not unlimited free compute. Openvibes does not enable it automatically and the local provider never sends jobs to it.
 
 ## Why Meta Vibes is blocked
 
