@@ -6,7 +6,7 @@ import { getConfig } from '../config.js';
 import { Store } from '../database/store.js';
 import { diagnose } from '../services/diagnostics.js';
 
-const usage = "Openvibes CLI\n\nCommands:\n  openvibes setup [--client auto|all|muse|antigravity|codex]\n  openvibes status\n  openvibes doctor\n  openvibes jobs\n  openvibes assets\n  openvibes mcp\n  openvibes auth login\n  openvibes uninstall\n\nEnvironment:\n  COMFYUI_URL             Local ComfyUI base URL\n  OPENVIBES_DATA_DIR      Persistent jobs/assets database directory\n  OPENVIBES_OUTPUT_DIR    Generated media directory\n";
+const usage = "Openvibes CLI\n\nCommands:\n  openvibes setup [--client auto|all|muse|antigravity|codex|claude|zed]\n  openvibes status\n  openvibes doctor\n  openvibes jobs\n  openvibes assets\n  openvibes mcp\n  openvibes auth login\n  openvibes uninstall\n\nEnvironment:\n  COMFYUI_URL             Local ComfyUI base URL\n  OPENVIBES_DATA_DIR      Persistent jobs/assets database directory\n  OPENVIBES_OUTPUT_DIR    Generated media directory\n";
 
 type JsonObject = Record<string, unknown>;
 
@@ -15,7 +15,7 @@ function isObject(value: unknown): value is JsonObject {
 }
 
 function commandAvailable(command: string): boolean {
-  const result = spawnSync(command, ['--version'], { stdio: 'ignore', windowsHide: true });
+  const result = spawnSync(command, ['--version'], { stdio: 'ignore', windowsHide: true, shell: process.platform === 'win32' });
   return !result.error && result.status === 0;
 }
 
@@ -35,7 +35,7 @@ function detectClients() {
     { name: 'Antigravity', command: 'agy', installed: commandAvailable('agy'), config: antigravityConfig, configured: fs.existsSync(antigravityConfig) },
     { name: 'Codex', command: 'codex', installed: commandAvailable('codex'), config: codexConfig, configured: fs.existsSync(codexConfig) },
     { name: 'Claude Code', command: 'claude', installed: commandAvailable('claude'), config: path.join(home, '.claude.json'), configured: fs.existsSync(path.join(home, '.claude.json')) },
-    { name: 'Zed', command: 'zed', installed: commandAvailable('zed'), config: path.join(home, '.config', 'zed', 'settings.json'), configured: fs.existsSync(path.join(home, '.config', 'zed', 'settings.json')) },
+    { name: 'Zed', command: 'zed', installed: commandAvailable('zed'), config: zedConfig, configured: fs.existsSync(zedConfig) },
   ];
 }
 
@@ -135,7 +135,7 @@ function installCodex(config: ReturnType<typeof getConfig>, entrypoint: string) 
 }
 
 function installClaude(config: ReturnType<typeof getConfig>, entrypoint: string) {
-  const list = spawnSync('claude', ['mcp', 'list'], { encoding: 'utf8', windowsHide: true });
+  const list = spawnSync('claude', ['mcp', 'list'], { encoding: 'utf8', windowsHide: true, shell: process.platform === 'win32' });
   if (list.error || list.status !== 0) {
     throw new Error('CLAUDE_MCP_LIST_FAILED: run claude mcp list manually to inspect the current configuration.');
   }
@@ -149,7 +149,7 @@ function installClaude(config: ReturnType<typeof getConfig>, entrypoint: string)
     '--env', 'OPENVIBES_DATA_DIR=' + env.OPENVIBES_DATA_DIR,
     '--env', 'OPENVIBES_OUTPUT_DIR=' + env.OPENVIBES_OUTPUT_DIR,
     'openvibes', '--', process.execPath, entrypoint, 'mcp',
-  ], { encoding: 'utf8', stdio: 'inherit', windowsHide: true });
+  ], { encoding: 'utf8', stdio: 'inherit', windowsHide: true, shell: process.platform === 'win32' });
   if (result.error || result.status !== 0) {
     throw new Error('CLAUDE_MCP_ADD_FAILED: ' + (result.error?.message ?? result.stderr ?? result.status));
   }
@@ -214,7 +214,7 @@ function setupClients(args: string[], config: ReturnType<typeof getConfig>) {
   return {
     requested, configured, errors, detectedClients: clients,
     ...(selected.length === 0 ? {
-      note: 'No supported MCP client was detected. Install Muse Code, Antigravity or Codex, then run openvibes setup --client auto, or follow docs/CLIENT-SETUP.md.',
+      note: 'No supported MCP client was detected. Install Muse Code, Antigravity, Codex, Claude Code or Zed, then run openvibes setup --client auto, or follow docs/CLIENTS.md.',
     } : {}),
   };
 }
