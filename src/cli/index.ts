@@ -15,7 +15,7 @@ function isObject(value: unknown): value is JsonObject {
 }
 
 function commandAvailable(command: string): boolean {
-  const result = spawnSync(command, ['--version'], { stdio: 'ignore', windowsHide: true });
+  const result = spawnSync(command, ['--version'], { stdio: 'ignore', windowsHide: true, shell: process.platform === 'win32' });
   return !result.error && result.status === 0;
 }
 
@@ -127,7 +127,7 @@ function installAntigravity(config: ReturnType<typeof getConfig>, entrypoint: st
 }
 
 function installCodex(config: ReturnType<typeof getConfig>, entrypoint: string) {
-  const list = spawnSync('codex', ['mcp', 'list'], { encoding: 'utf8', windowsHide: true });
+  const list = spawnSync('codex', ['mcp', 'list'], { encoding: 'utf8', windowsHide: true, shell: process.platform === 'win32' });
   if (list.error || list.status !== 0) {
     throw new Error('CODEX_MCP_LIST_FAILED: run codex mcp list manually to inspect the current configuration.');
   }
@@ -141,7 +141,7 @@ function installCodex(config: ReturnType<typeof getConfig>, entrypoint: string) 
     '--env', 'OPENVIBES_DATA_DIR=' + env.OPENVIBES_DATA_DIR,
     '--env', 'OPENVIBES_OUTPUT_DIR=' + env.OPENVIBES_OUTPUT_DIR,
     '--', process.execPath, entrypoint, 'mcp',
-  ], { encoding: 'utf8', stdio: 'inherit', windowsHide: true });
+  ], { encoding: 'utf8', stdio: 'inherit', windowsHide: true, shell: process.platform === 'win32' });
   if (result.error || result.status !== 0) {
     throw new Error('CODEX_MCP_ADD_FAILED: ' + (result.error?.message ?? result.stderr ?? result.status));
   }
