@@ -2,7 +2,7 @@
 
 **Open-source MCP server for local AI image/video workflows, with a separately gated Meta Vibes provider.**
 
-> **Current version: 0.2.0 — early development.** Openvibes now includes a local ComfyUI API provider for running user-supplied API-format workflows, monitoring jobs and downloading outputs. Meta Vibes free-plan automation remains blocked because an authorised unattended public interface has not been verified.
+> **Current version: 0.3.0 — early development.** Openvibes now includes a local ComfyUI API provider for running user-supplied API-format workflows, monitoring jobs and downloading outputs. Meta Vibes free-plan automation remains blocked because an authorised unattended public interface has not been verified.
 
 Openvibes is an independent community project. It is not affiliated with, endorsed by, sponsored by, or officially supported by Meta Platforms, Inc.
 
@@ -19,7 +19,9 @@ Openvibes is an independent community project. It is not affiliated with, endors
 | ComfyUI image/video output download | Implemented for supported output nodes and formats |
 | ComfyUI cancellation | Implemented for confirmed queued/running jobs |
 | Meta Vibes free image/video generation | Blocked / unverified |
-| Automatic generic workflow construction | Not implemented; supply API-format workflow JSON |
+| Text-to-image | Implemented for installed CheckpointLoaderSimple-compatible checkpoints |
+| Video generation | Supported through user-supplied API-format ComfyUI workflows |
+| Generic workflow construction | Video and custom workflows require API-format JSON |
 
 ## Free local generation
 
@@ -39,7 +41,7 @@ npm link
 openvibes setup --client auto
 ~~~
 
-Set COMFYUI_URL=http://127.0.0.1:8188, start ComfyUI, export a workflow in API format, and use openvibes_comfy_run_workflow. Output files are downloaded to OPENVIBES_OUTPUT_DIR (default: generated).
+Set COMFYUI_URL=http://127.0.0.1:8188 and start ComfyUI. For text-to-image, call openvibes_comfy_list_checkpoints, then openvibes_comfy_generate_image with a prompt and installed checkpoint. For video or custom graphs, export an API-format workflow and call openvibes_comfy_run_workflow. Outputs are downloaded to OPENVIBES_OUTPUT_DIR (default: generated).
 
 ## MCP tools
 
