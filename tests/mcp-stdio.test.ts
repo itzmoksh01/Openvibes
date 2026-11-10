@@ -58,7 +58,8 @@ test('built executable completes MCP initialize and tools/list over real stdio',
     assert.equal(initialized.result?.serverInfo?.name, 'openvibes');
     assert.ok(initialized.result?.protocolVersion);
 
-    const toolsResponse = readLine(reader);\n    child.stdin.write(JSON.stringify({
+    const toolsResponse = readLine(reader);
+    child.stdin.write(JSON.stringify({
       jsonrpc: '2.0',
       method: 'notifications/initialized',
     }) + '\n');
