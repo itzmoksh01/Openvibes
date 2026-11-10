@@ -39,20 +39,28 @@ export class ComfyUiLocalProvider {
   readonly id = 'comfyui-local';
   readonly baseUrl: string;
   readonly outputDir: string;
+  readonly configurationError: string | undefined;
 
   constructor(
     baseUrl = process.env.COMFYUI_URL ?? 'http://127.0.0.1:8188',
     outputDir = process.env.OPENVIBES_OUTPUT_DIR ?? path.join(process.cwd(), 'generated'),
   ) {
-    const url = new URL(baseUrl);
-    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) {
-      throw new Error('INVALID_COMFYUI_URL');
-    }
-    this.baseUrl = url.toString().replace(/\/$/, '');
     this.outputDir = path.resolve(outputDir);
+    try {
+      const url = new URL(baseUrl);
+      if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) {
+        throw new Error('INVALID_COMFYUI_URL');
+      }
+      this.baseUrl = url.toString().replace(/\/$/, '');
+      this.configurationError = undefined;
+    } catch {
+      this.baseUrl = '';
+      this.configurationError = 'INVALID_COMFYUI_URL';
+    }
   }
 
   private async request(route: string, init?: RequestInit, timeoutMs = 15_000): Promise<Response> {
+    if (this.configurationError || !this.baseUrl) throw new Error(this.configurationError ?? 'INVALID_COMFYUI_URL');
     const url = new URL(route, this.baseUrl);
     const response = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
     if (!response.ok) {
