@@ -74,6 +74,9 @@ function writeJsonConfig(
   if (!isObject(servers)) throw new Error(rootKey.toUpperCase() + '_NOT_OBJECT: ' + filePath);
 
   const previous = servers.openvibes;
+  if (previous !== undefined && !isObject(previous)) {
+    throw new Error('OPENVIBES_CONFIG_CONFLICT: Existing entry in ' + filePath + ' is not an object; it was left unchanged.');
+  }
   let alreadyConfigured = false;
   if (previous !== undefined && isObject(previous)) {
     if (previous.command !== serverConfig.command ||
@@ -149,7 +152,7 @@ function installCodex(config: ReturnType<typeof getConfig>, entrypoint: string) 
 }
 
 function installClaude(config: ReturnType<typeof getConfig>, entrypoint: string) {
-  const list = spawnSync('claude', ['mcp', 'list'], { encoding: 'utf8', windowsHide: true });
+  const list = spawnSync('claude', ['mcp', 'list'], { encoding: 'utf8', windowsHide: true, shell: process.platform === 'win32' });
   if (list.error || list.status !== 0) {
     throw new Error('CLAUDE_MCP_LIST_FAILED: run claude mcp list manually to inspect the current configuration.');
   }
@@ -163,7 +166,7 @@ function installClaude(config: ReturnType<typeof getConfig>, entrypoint: string)
     '-e', 'OPENVIBES_DATA_DIR=' + env.OPENVIBES_DATA_DIR,
     '-e', 'OPENVIBES_OUTPUT_DIR=' + env.OPENVIBES_OUTPUT_DIR,
     'openvibes', '--', process.execPath, entrypoint, 'mcp',
-  ], { encoding: 'utf8', stdio: 'inherit', windowsHide: true });
+  ], { encoding: 'utf8', stdio: 'inherit', windowsHide: true, shell: process.platform === 'win32' });
   if (result.error || result.status !== 0) {
     throw new Error('CLAUDE_MCP_ADD_FAILED: ' + (result.error?.message ?? result.stderr ?? result.status));
   }
@@ -176,7 +179,6 @@ function installZed(config: ReturnType<typeof getConfig>, entrypoint: string) {
     command: process.execPath,
     args: [entrypoint, 'mcp'],
     env: clientEnvironment(config),
-    timeout: 600,
   }, { rootKey: 'context_servers' });
   return { client: 'Zed', ...result };
 }
@@ -187,7 +189,7 @@ function setupClients(args: string[], config: ReturnType<typeof getConfig>) {
   const valid = ['auto', 'all', 'muse', 'antigravity', 'codex', 'claude', 'zed'];
   if (!valid.includes(requested)) throw new Error('UNKNOWN_CLIENT: ' + requested + '. Choose: ' + valid.join(', ') + '.');
 
-  const entrypoint = path.resolve(process.argv[1] ?? path.join(process.cwd(), 'dist', 'src', 'index.js'));
+  const entrypoint = fs.realpathSync(path.resolve(process.argv[1] ?? path.join(process.cwd(), 'dist', 'src', 'index.js')));
   const clients = detectClients();
   const muse = clients.find((client) => client.name === 'Muse Code');
   const antigravity = clients.find((client) => client.name === 'Antigravity');
