@@ -1,6 +1,6 @@
 # Openvibes
 
-**Open-source MCP server for AI image/video workflows.** It keeps the Meta Vibes free-account route evidence-gated and provides a practical local generation path through ComfyUI.
+**Open-source MCP server for hosted and local multimodal AI.** Use hosted text, image, video and audio models through Pollinations without downloading model weights, or use local ComfyUI when you prefer offline/local inference.
 
 > **Current status: v0.3.0 — early development.** The MCP server has Meta Vibes capability reporting and a local ComfyUI provider. Meta Vibes unattended generation remains blocked because a public, authorized API for ordinary free Vibes accounts has not been verified. Local ComfyUI generation requires a running ComfyUI instance, compatible models and suitable hardware.
 
@@ -18,6 +18,9 @@ Openvibes is independent and is not affiliated with, endorsed by, sponsored by, 
 | Codex configuration | Automated when Codex CLI is installed |
 | Claude Code configuration | Automated when Claude CLI is installed |
 | Zed configuration | Automated when Zed is detected (strict JSON settings only) |
+| Hosted model catalogue (text/image/video/audio) | Implemented via Pollinations API |
+| Hosted text generation | Implemented; requires user-owned Pollinations key and budget |
+| Hosted image/video/audio generation and local downloads | Implemented; model-specific availability and pricing apply |
 | ComfyUI connection and system check | Implemented |
 | One-call local text-to-image | Implemented; requires a compatible installed checkpoint |
 | Custom ComfyUI image/video workflows | Implemented; requires an API-format workflow |
@@ -48,7 +51,7 @@ openvibes setup --client all
 
 Restart or reload the MCP host after setup. See [Client setup](docs/CLIENT-SETUP.md) for manual configuration and verification.
 
-## Generate an image locally
+## Generate online without installing model weights\n\nOpenvibes can call hosted models through [Pollinations](https://github.com/pollinations/pollinations). The model weights run on the provider's infrastructure; users do not need a local GPU or to download model files. Create a user-owned API key at https://enter.pollinations.ai/keys, then set `OPENVIBES_POLLINATIONS_API_KEY` in the environment inherited by your MCP host before launching it. Do not paste the key into prompts, source code, GitHub, or public MCP config files.\n\nUse `openvibes_hosted_list_models` to inspect live text/image/video/audio catalogues, capabilities and pricing. Use `openvibes_hosted_generate_text` for text, and `openvibes_hosted_generate_media` with `kind: image`, `video` or `audio` to generate and automatically download output into `generated/`. Choose a model ID from the live catalogue; do not assume all models are free or open-weight. Pollinations generation requires a user-authorized key and available Pollen budget. The API key's budget is a spending cap, not free credits. Usage may cost Pollen, and exhausted budgets return an error. See [Hosted inference](docs/HOSTED-INFERENCE.md).\n\n## Generate an image locally
 
 1. Install ComfyUI using its official instructions: https://docs.comfy.org/get_started
 2. Start ComfyUI. Its default local API address is `http://127.0.0.1:8188`.
@@ -77,7 +80,7 @@ See [Free local ComfyUI setup](docs/COMFYUI-LOCAL.md).
 ## MCP tools
 
 **Meta status**
-- `openvibes_get_capabilities`
+- `openvibes_get_capabilities`\n- `openvibes_hosted_list_models`\n- `openvibes_hosted_generate_text`\n- `openvibes_hosted_generate_media` — image/video/audio with automatic download
 - `openvibes_generate_image` — intentionally returns BLOCKED until an authorized Meta Vibes route is verified
 - `openvibes_generate_video` — same evidence gate
 - `openvibes_animate_image` — same evidence gate
@@ -99,9 +102,9 @@ See [Free local ComfyUI setup](docs/COMFYUI-LOCAL.md).
 - `openvibes_get_asset`
 - `openvibes_doctor`
 
-## Free means local hardware, not magic cloud compute
+## Free means local hardware or provider-specific free allowances, not unlimited cloud compute
 
-ComfyUI and its local MCP integration are open-source. Local model inference has no per-generation API charge, but it uses your own GPU/CPU, RAM, disk space and electricity. Video generation can require substantial VRAM and time. Model weights and custom nodes have their own licenses; check them before commercial use.
+ComfyUI and its local MCP integration are open-source. Local model inference has no per-generation API charge, but it uses your own GPU/CPU, RAM, disk space and electricity. Hosted inference avoids local model installation but depends on the provider's live pricing, free allowances and account quotas; Openvibes never claims unlimited free hosted compute. Video generation can require substantial VRAM and time. Model weights and custom nodes have their own licenses; check them before commercial use.
 
 Comfy Cloud is a separate hosted service. Its official MCP docs currently advertise five free runs for new users; generation beyond the trial requires an active subscription. This is a limited trial, not unlimited free compute. Openvibes does not enable it automatically and the local provider never sends jobs to it.
 
