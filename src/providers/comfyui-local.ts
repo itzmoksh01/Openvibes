@@ -136,13 +136,14 @@ export class ComfyUiLocalProvider {
     }
     const requestBody = JSON.stringify({ prompt: workflow, client_id: randomUUID() });
     if (typeof requestBody !== 'string') throw new Error('WORKFLOW_SERIALIZATION_FAILED');
+    if (Buffer.byteLength(requestBody, 'utf8') > 10 * 1024 * 1024) throw new Error('WORKFLOW_TOO_LARGE');
     const response = await this.request('/prompt', {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: requestBody,
     });
-    const data = await response.json() as {
+    const data = await readResponseJson<{
       prompt_id?: string; number?: number; error?: unknown; node_errors?: unknown;
-    };
+    }>(response, 4 * 1024 * 1024, 'COMFYUI_SUBMIT_RESPONSE');
     if (!data.prompt_id) {
       throw new Error(`COMFYUI_WORKFLOW_REJECTED: ${JSON.stringify({
         error: data.error, node_errors: data.node_errors,
@@ -234,7 +235,8 @@ export class ComfyUiLocalProvider {
         filename: file.filename, subfolder: file.subfolder ?? '', type: file.type ?? 'output',
       });
       const response = await this.request(`/view?${query.toString()}`, undefined, 120_000);
-      const bytes = await readResponseBuffer(response, 512 * 1024 * 1024, 'COMFYUI_MEDIA');\n      if (!bytes.length) throw new Error('COMFYUI_EMPTY_MEDIA_OUTPUT');
+      const bytes = await readResponseBuffer(response, 512 * 1024 * 1024, 'COMFYUI_MEDIA');
+      if (!bytes.length) throw new Error('COMFYUI_EMPTY_MEDIA_OUTPUT');
       await fs.mkdir(path.dirname(target), { recursive: true, mode: 0o700 });
 
       let finalPath = target;
