@@ -40,5 +40,7 @@ jobs:
         run: npm audit --audit-level=high
       - name: Verify package contents
         run: npm pack --dry-run
+      - name: Install and execute packed package
+        run: node scripts/smoke-pack.mjs
       - name: Verify CLI entrypoint
         run: node dist/src/index.js --help
