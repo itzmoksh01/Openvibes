@@ -8,7 +8,7 @@
     "node": ">=22.13.0"
   },
   "bin": {
-    "openvibes": "./dist/cli/index.js"
+    "openvibes": "./dist/src/index.js"
   },
   "files": [
     "dist",
@@ -22,7 +22,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "node --test dist/tests/*.test.js",
     "dev": "tsx src/index.ts",
-    "start": "node dist/index.js",
+    "start": "node dist/src/index.js",
     "prepublishOnly": "npm run typecheck && npm test"
   },
   "keywords": [
