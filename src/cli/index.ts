@@ -1,21 +1,216 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import {spawnSync} from 'node:child_process';
-import {getConfig} from '../config.js';
-import {Store} from '../database/store.js';
-import {diagnose} from '../services/diagnostics.js';
+import { spawnSync } from 'node:child_process';
+import { getConfig } from '../config.js';
+import { Store } from '../database/store.js';
+import { diagnose } from '../services/diagnostics.js';
 
-const usage='Openvibes CLI\n\nCommands:\n  openvibes setup --client auto|all\n  openvibes status\n  openvibes doctor\n  openvibes jobs\n  openvibes assets\n  openvibes mcp\n  openvibes auth login\n  openvibes uninstall\n';
-function detectClients(){const h=os.homedir();const candidates=[{name:'Claude Code',paths:[path.join(h,'.claude'),path.join(h,'.claude.json')]},{name:'Codex',paths:[path.join(h,'.codex')]},{name:'Zed',paths:[path.join(h,'.config','zed'),path.join(h,'Library','Application Support','Zed'),path.join(process.env.APPDATA??path.join(h,'AppData','Roaming'),'Zed')] },{name:'Antigravity',paths:[path.join(h,'.gemini')]},{name:'Muse Code',paths:[path.join(h,'.muse'),path.join(h,'.config','muse')]}];return candidates.map(c=>({...c,detected:c.paths.some(p=>fs.existsSync(p))}));}
-function atomicJsonMerge(file:string,rootKey:string,entryName:string,entry:Record<string,unknown>):string{fs.mkdirSync(path.dirname(file),{recursive:true,mode:0o700});let data:Record<string,unknown>={};if(fs.existsSync(file)){try{data=JSON.parse(fs.readFileSync(file,'utf8')) as Record<string,unknown>;}catch{return 'skipped: existing configuration is invalid JSON; left untouched';}}const section=(data[rootKey]&&typeof data[rootKey]==='object'&&!Array.isArray(data[rootKey]))?data[rootKey] as Record<string,unknown>:{};if(section[entryName])return 'skipped: an entry named openvibes already exists; left untouched';section[entryName]=entry;data[rootKey]=section;if(fs.existsSync(file))fs.copyFileSync(file,file+'.openvibes-backup');const temp=file+'.openvibes-tmp';fs.writeFileSync(temp,JSON.stringify(data,null,2)+'\n',{mode:0o600});fs.renameSync(temp,file);return 'configured';}
-function runCli(command:string,args:string[]){return spawnSync(command,args,{encoding:'utf8',timeout:15000,windowsHide:true,shell:process.platform==='win32'});}
-function configureSetup(mode:'auto'|'all'):Record<string,unknown>{const config=getConfig();fs.mkdirSync(config.dataDir,{recursive:true,mode:0o700});fs.mkdirSync(config.outputDir,{recursive:true,mode:0o700});const entry=path.resolve(process.argv[1]??'openvibes');const results:Record<string,string>={};
-const clients=detectClients();
-const codex=runCli('codex',['mcp','list']);if(!codex.error&&codex.status===0){if((codex.stdout??'').toLowerCase().includes('openvibes'))results['Codex']='skipped: openvibes already appears in codex mcp list';else{const r=runCli('codex',['mcp','add','openvibes','--env','OPENVIBES_OUTPUT_DIR='+config.outputDir,'--',process.execPath,entry,'mcp']);results['Codex']=r.status===0?'configured via codex mcp add':String(r.stderr||r.error||'configuration failed');}}else results['Codex']=clients.find(c=>c.name==='Codex')?.detected?'detected but Codex CLI is unavailable':'not detected';
-const claude=runCli('claude',['mcp','list']);if(!claude.error&&claude.status===0){if((claude.stdout??'').toLowerCase().includes('openvibes'))results['Claude Code']='skipped: openvibes already appears in claude mcp list';else{const r=runCli('claude',['mcp','add','--transport','stdio','--scope','user','openvibes','--',process.execPath,entry,'mcp']);results['Claude Code']=r.status===0?'configured via claude mcp add':String(r.stderr||r.error||'configuration failed');}}else results['Claude Code']=clients.find(c=>c.name==='Claude Code')?.detected?'detected but Claude CLI is unavailable':'not detected';
-const antigravity=path.join(os.homedir(),'.gemini','config','mcp_config.json');results['Antigravity']=mode==='all'||clients.find(c=>c.name==='Antigravity')?.detected?atomicJsonMerge(antigravity,'mcpServers','openvibes',{command:process.execPath,args:[entry,'mcp'],env:{OPENVIBES_OUTPUT_DIR:config.outputDir,...(process.env.COMFYUI_URL?{COMFYUI_URL:process.env.COMFYUI_URL}:{})}}):'not detected';
-const zedFile=process.platform==='darwin'?path.join(os.homedir(),'Library','Application Support','Zed','settings.json'):process.platform==='win32'?path.join(process.env.APPDATA??path.join(os.homedir(),'AppData','Roaming'),'Zed','settings.json'):path.join(os.homedir(),'.config','zed','settings.json');results['Zed']=mode==='all'||clients.find(c=>c.name==='Zed')?.detected?atomicJsonMerge(zedFile,'context_servers','openvibes',{command:process.execPath,args:[entry,'mcp'],env:{OPENVIBES_OUTPUT_DIR:config.outputDir,...(process.env.COMFYUI_URL?{COMFYUI_URL:process.env.COMFYUI_URL}:{})}}):'not detected';
-results['Muse Code']='not configured: no verified official MCP configuration schema was available; see docs/CLIENTS.md';
-return {message:'Openvibes local directories initialized. Client configuration results are listed below.',dataDir:config.dataDir,outputDir:config.outputDir,mcp:{command:process.execPath,args:[entry,'mcp']},clients:results};}
-export async function runCli(args:string[]):Promise<void>{const command=args[0]??'help';const config=getConfig();if(['help','--help','-h'].includes(command)){process.stdout.write(usage);return;}if(command==='setup'){process.stdout.write(JSON.stringify(configureSetup(args.includes('all')?'all':'auto'),null,2)+'\n');return;}if(command==='status'||command==='doctor'){process.stdout.write(JSON.stringify(diagnose(config),null,2)+'\n');return;}if(command==='jobs'||command==='assets'){const s=new Store(config.databasePath);const rows=command==='jobs'?s.listJobs(50):s.listAssets(50);process.stdout.write(JSON.stringify(rows,null,2)+'\n');s.close();return;}if(command==='auth'){process.stdout.write(JSON.stringify({status:'not_available',message:'No official Meta Vibes OAuth/API authorization flow has been verified. Never provide passwords or session cookies.'},null,2)+'\n');return;}if(command==='uninstall'){process.stdout.write('Uninstall removes the package only. Local data and generated assets are preserved.\n');return;}process.stderr.write(usage);process.exitCode=2;}
+const usage = "Openvibes CLI\n\nCommands:\n  openvibes setup [--client auto|all|muse|antigravity|codex]\n  openvibes status\n  openvibes doctor\n  openvibes jobs\n  openvibes assets\n  openvibes mcp\n  openvibes auth login\n  openvibes uninstall\n\nEnvironment:\n  COMFYUI_URL             Local ComfyUI base URL\n  OPENVIBES_DATA_DIR      Persistent jobs/assets database directory\n  OPENVIBES_OUTPUT_DIR    Generated media directory\n";
+
+type JsonObject = Record<string, unknown>;
+
+function isObject(value: unknown): value is JsonObject {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function commandAvailable(command: string): boolean {
+  const result = spawnSync(command, ['--version'], { stdio: 'ignore', windowsHide: true });
+  return !result.error && result.status === 0;
+}
+
+function detectClients() {
+  const home = os.homedir();
+  const museConfig = path.join(process.env.XDG_CONFIG_HOME ?? path.join(home, '.config'), 'muse', 'settings.json');
+  const antigravityConfig = path.join(home, '.gemini', 'config', 'mcp_config.json');
+  const codexConfig = path.join(home, '.codex', 'config.toml');
+  return [
+    { name: 'Muse Code', command: 'muse', installed: commandAvailable('muse'), config: museConfig, configured: fs.existsSync(museConfig) },
+    { name: 'Antigravity', command: 'agy', installed: commandAvailable('agy'), config: antigravityConfig, configured: fs.existsSync(antigravityConfig) },
+    { name: 'Codex', command: 'codex', installed: commandAvailable('codex'), config: codexConfig, configured: fs.existsSync(codexConfig) },
+    { name: 'Claude Code', command: 'claude', installed: commandAvailable('claude'), config: path.join(home, '.claude.json'), configured: fs.existsSync(path.join(home, '.claude.json')) },
+    { name: 'Zed', command: 'zed', installed: commandAvailable('zed'), config: path.join(home, '.config', 'zed', 'settings.json'), configured: fs.existsSync(path.join(home, '.config', 'zed', 'settings.json')) },
+  ];
+}
+
+function writeJsonConfig(filePath: string, serverConfig: JsonObject, museSchema = false) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true, mode: 0o700 });
+  let config: JsonObject = {};
+  const existed = fs.existsSync(filePath);
+  if (existed) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    } catch {
+      throw new Error('CONFIG_INVALID_JSON: ' + filePath + '. Fix it manually; Openvibes will not overwrite it.');
+    }
+    if (!isObject(parsed)) throw new Error('CONFIG_NOT_OBJECT: ' + filePath);
+    config = parsed;
+  }
+  if (museSchema) {
+    if (config.schema_version !== undefined && config.schema_version !== 1) {
+      throw new Error('MUSE_SCHEMA_VERSION_UNSUPPORTED: ' + String(config.schema_version));
+    }
+    config.schema_version = 1;
+  }
+  const servers = config.mcpServers === undefined ? {} : config.mcpServers;
+  if (!isObject(servers)) throw new Error('MCP_SERVERS_NOT_OBJECT: ' + filePath);
+
+  const previous = servers.openvibes;
+  if (previous !== undefined && isObject(previous)) {
+    if (previous.command !== serverConfig.command ||
+        JSON.stringify(previous.args) !== JSON.stringify(serverConfig.args)) {
+      throw new Error('OPENVIBES_CONFIG_CONFLICT: Existing entry in ' + filePath + ' points somewhere else; it was left unchanged.');
+    }
+    servers.openvibes = { ...previous, ...serverConfig };
+    config.mcpServers = servers;
+    return { path: filePath, alreadyConfigured: true };
+  }
+
+  servers.openvibes = serverConfig;
+  config.mcpServers = servers;
+  let backup: string | undefined;
+  if (existed) {
+    backup = filePath + '.openvibes-backup-' + new Date().toISOString().replace(/[:.]/g, '-');
+    fs.copyFileSync(filePath, backup);
+  }
+  const temporary = filePath + '.openvibes-' + process.pid + '.tmp';
+  fs.writeFileSync(temporary, JSON.stringify(config, null, 2) + '\n', { mode: 0o600 });
+  fs.renameSync(temporary, filePath);
+  return { path: filePath, ...(backup ? { backup } : {}), alreadyConfigured: false };
+}
+
+function clientEnvironment(config: ReturnType<typeof getConfig>): Record<string, string> {
+  return {
+    COMFYUI_URL: process.env.COMFYUI_URL ?? 'http://127.0.0.1:8188',
+    OPENVIBES_DATA_DIR: config.dataDir,
+    OPENVIBES_OUTPUT_DIR: config.outputDir,
+  };
+}
+
+function installMuse(config: ReturnType<typeof getConfig>, entrypoint: string) {
+  const file = path.join(process.env.XDG_CONFIG_HOME ?? path.join(os.homedir(), '.config'), 'muse', 'settings.json');
+  const result = writeJsonConfig(file, {
+    type: 'stdio', command: process.execPath, args: [entrypoint, 'mcp'],
+    env: clientEnvironment(config), required: false, tool_timeout_sec: 600,
+  }, true);
+  return { client: 'Muse Code', ...result };
+}
+
+function installAntigravity(config: ReturnType<typeof getConfig>, entrypoint: string) {
+  const file = path.join(os.homedir(), '.gemini', 'config', 'mcp_config.json');
+  const result = writeJsonConfig(file, {
+    type: 'stdio', command: process.execPath, args: [entrypoint, 'mcp'],
+    env: clientEnvironment(config),
+  });
+  return { client: 'Antigravity', ...result };
+}
+
+function installCodex(config: ReturnType<typeof getConfig>, entrypoint: string) {
+  const list = spawnSync('codex', ['mcp', 'list'], { encoding: 'utf8', windowsHide: true });
+  if (list.error || list.status !== 0) {
+    throw new Error('CODEX_MCP_LIST_FAILED: run codex mcp list manually to inspect the current configuration.');
+  }
+  if (/\bopenvibes\b/i.test(list.stdout ?? '')) {
+    return { client: 'Codex', alreadyConfigured: true, note: 'Existing entry was left unchanged.' };
+  }
+  const env = clientEnvironment(config);
+  const result = spawnSync('codex', [
+    'mcp', 'add', 'openvibes',
+    '--env', 'COMFYUI_URL=' + env.COMFYUI_URL,
+    '--env', 'OPENVIBES_DATA_DIR=' + env.OPENVIBES_DATA_DIR,
+    '--env', 'OPENVIBES_OUTPUT_DIR=' + env.OPENVIBES_OUTPUT_DIR,
+    '--', process.execPath, entrypoint, 'mcp',
+  ], { encoding: 'utf8', stdio: 'inherit', windowsHide: true });
+  if (result.error || result.status !== 0) {
+    throw new Error('CODEX_MCP_ADD_FAILED: ' + (result.error?.message ?? result.stderr ?? result.status));
+  }
+  return { client: 'Codex', alreadyConfigured: false };
+}
+
+function setupClients(args: string[], config: ReturnType<typeof getConfig>) {
+  const clientFlag = args.indexOf('--client');
+  const requested = clientFlag >= 0 ? (args[clientFlag + 1] ?? 'auto') : 'auto';
+  const valid = ['auto', 'all', 'muse', 'antigravity', 'codex'];
+  if (!valid.includes(requested)) throw new Error('UNKNOWN_CLIENT: ' + requested + '. Choose: ' + valid.join(', ') + '.');
+
+  const entrypoint = path.resolve(process.argv[1] ?? path.join(process.cwd(), 'dist', 'src', 'index.js'));
+  const clients = detectClients();
+  const muse = clients.find((client) => client.name === 'Muse Code');
+  const antigravity = clients.find((client) => client.name === 'Antigravity');
+  const codex = clients.find((client) => client.name === 'Codex');
+  const selected = requested === 'all'
+    ? ['muse', 'antigravity', 'codex']
+    : requested === 'auto'
+      ? [
+          ...(muse?.installed || muse?.configured ? ['muse'] : []),
+          ...(antigravity?.installed || antigravity?.configured ? ['antigravity'] : []),
+          ...(codex?.installed ? ['codex'] : []),
+        ]
+      : [requested];
+
+  fs.mkdirSync(config.dataDir, { recursive: true, mode: 0o700 });
+  fs.mkdirSync(config.outputDir, { recursive: true, mode: 0o700 });
+  const configured: unknown[] = [];
+  const errors: unknown[] = [];
+  for (const client of selected) {
+    try {
+      if (client === 'muse') configured.push(installMuse(config, entrypoint));
+      else if (client === 'antigravity') configured.push(installAntigravity(config, entrypoint));
+      else if (client === 'codex') configured.push(installCodex(config, entrypoint));
+    } catch (error) {
+      errors.push({ client, error: error instanceof Error ? error.message : String(error) });
+    }
+  }
+  return {
+    requested, configured, errors, detectedClients: clients,
+    ...(selected.length === 0 ? {
+      note: 'No supported MCP client was detected. Install Muse Code, Antigravity or Codex, then run openvibes setup --client auto, or follow docs/CLIENT-SETUP.md.',
+    } : {}),
+  };
+}
+
+export async function runCli(args: string[]): Promise<void> {
+  const command = args[0] ?? 'help';
+  const config = getConfig();
+  if (['help', '--help', '-h'].includes(command)) {
+    process.stdout.write(usage);
+    return;
+  }
+  if (command === 'setup') {
+    try {
+      process.stdout.write(JSON.stringify(setupClients(args.slice(1), config), null, 2) + '\n');
+    } catch (error) {
+      process.stderr.write((error instanceof Error ? error.message : String(error)) + '\n');
+      process.exitCode = 2;
+    }
+    return;
+  }
+  if (command === 'status' || command === 'doctor') {
+    process.stdout.write(JSON.stringify(diagnose(config), null, 2) + '\n');
+    return;
+  }
+  if (command === 'jobs' || command === 'assets') {
+    const store = new Store(config.databasePath);
+    try {
+      const rows = command === 'jobs' ? store.listJobs(50) : store.listAssets(50);
+      process.stdout.write(JSON.stringify(rows, null, 2) + '\n');
+    } finally {
+      store.close();
+    }
+    return;
+  }
+  if (command === 'auth') {
+    process.stdout.write(JSON.stringify({
+      status: 'not_available',
+      message: 'No official Meta Vibes OAuth/API authorization flow has been verified. Never provide passwords or session cookies.',
+    }, null, 2) + '\n');
+    return;
+  }
+  if (command === 'uninstall') {
+    process.stdout.write('Uninstall removes the package only. Local data and generated assets are preserved.\n');
+    return;
+  }
+  process.stderr.write(usage);
+  process.exitCode = 2;
+}
