@@ -628,6 +628,8 @@ server.registerTool(
         comfyUiLocal: {
           ...local.providers.comfyUiLocal,
           ...comfyUi,
+          status: comfyUi.connected === true ? 'CONNECTED'
+            : comfy.configurationError ? 'INVALID_URL' : 'CONFIGURED_NOT_CONNECTED',
         },
       },
     });
