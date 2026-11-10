@@ -136,7 +136,7 @@ npm run build
 npm test
 ```
 
-The GitHub Actions CI workflow is configured for Ubuntu, Windows and macOS. Verify the latest workflow run before treating the package as release-ready. Do not claim a release is production-ready until CI and a real ComfyUI end-to-end generation have passed.
+The GitHub Actions CI workflow is configured for Ubuntu, Windows and macOS. It runs type-checking, compilation, provider tests, and a process-level MCP STDIO initialize/tools-list smoke test. Verify the latest workflow run before treating the package as release-ready. Do not claim a release is production-ready until CI and a real provider generation (hosted or local ComfyUI) have passed.
 
 ## Security
 
