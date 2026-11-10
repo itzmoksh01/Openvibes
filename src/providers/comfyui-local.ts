@@ -128,9 +128,11 @@ export class ComfyUiLocalProvider {
     if (!workflow || typeof workflow !== 'object' || Array.isArray(workflow) || Object.keys(workflow).length === 0) {
       throw new Error('INVALID_WORKFLOW_OBJECT');
     }
+    const requestBody = JSON.stringify({ prompt: workflow, client_id: randomUUID() });
+    if (typeof requestBody !== 'string') throw new Error('WORKFLOW_SERIALIZATION_FAILED');
     const response = await this.request('/prompt', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ prompt: workflow, client_id: randomUUID() }),
+      body: requestBody,
     });
     const data = await response.json() as {
       prompt_id?: string; number?: number; error?: unknown; node_errors?: unknown;
