@@ -4,14 +4,14 @@ Openvibes supports online inference through Pollinations' hosted generation API.
 
 ## Best no-local-install starting point: Cloudflare Workers AI
 
-Cloudflare Workers AI is the first option to try when you want a real hosted free allowance. Its current Free Workers plan includes 10,000 Neurons per day, reset at 00:00 UTC. Openvibes includes online tools for Meta Llama 3.1 8B text generation, FLUX.1-schnell image generation, and Deepgram Aura-1 text-to-speech. These are hosted model inference calls; no model files or local GPU are required. The free allowance is shared across Workers AI requests and is not unlimited.
+Cloudflare Workers AI is the first option to try when you want a real hosted free allowance. Its current Free Workers plan includes 10,000 Neurons per day, reset at 00:00 UTC. Openvibes includes online tools for Google Gemma 4 26B A4B text generation, FLUX.1-schnell image generation, and Deepgram Aura-1 text-to-speech. These are hosted model inference calls; no model files or local GPU are required. The free allowance is shared across Workers AI requests and is not unlimited.
 
 1. Create a Cloudflare account and open Workers AI → Use REST API.
 2. Copy the Account ID and create a Workers AI API token with Workers AI Read and Edit permissions.
 3. Set `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` in the environment inherited by your MCP host.
 4. Restart the coding agent and call `openvibes_cloudflare_generate_text`, `openvibes_cloudflare_generate_image`, or `openvibes_cloudflare_generate_audio`.
 
-Default models: `@cf/meta/llama-3.1-8b-instruct`, `@cf/black-forest-labs/flux-1-schnell`, and `@cf/deepgram/aura-1` for TTS. FLUX.1-schnell is a 12B hosted text-to-image model; its Cloudflare model page documents the REST API and base64 image response.
+Default models: `@cf/google/gemma-4-26b-a4b-it`, `@cf/black-forest-labs/flux-1-schnell`, and `@cf/deepgram/aura-1` for TTS. FLUX.1-schnell is a 12B hosted text-to-image model; its Cloudflare model page documents the REST API and base64 image response.
 
 Cloudflare Aura-1 TTS is a hosted Deepgram partner model, not an open-weight model. It is billed separately at the published rate of $0.015 per 1,000 characters; do not assume it is covered by the Workers AI daily free Neurons allowance. For video generation, use Pollinations' live video catalogue where account balance and model availability permit. Open-weight hosted video inference with a dependable free public quota is not currently verified.
 
