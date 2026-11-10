@@ -1,21 +1,28 @@
 # Architecture
 
-Openvibes separates MCP interface, local orchestration and provider implementation.
+Openvibes separates the MCP interface, local job orchestration, and provider implementations.
 
-```text
-Coding agent -> MCP STDIO server -> tools -> job store / prompt engine -> provider registry
-                                                              |
-                                                       local asset store
-```
+~~~text
+Coding agent -> MCP STDIO server -> tools -> job store / prompt engine
+                                             |              |
+                                      Meta Vibes gate   ComfyUI local API
+                                             |              |
+                                       BLOCKED until      /prompt
+                                       authorized API     /history
+                                                          /view
+                                                             |
+                                                      local asset store
+~~~
 
 ## Current implementation
 
-- MCP server: official TypeScript SDK v2 package `@modelcontextprotocol/server`.
+- MCP server: official TypeScript SDK v2 package @modelcontextprotocol/server.
 - Transport: STDIO.
 - Runtime: Node.js 22.13+.
 - Validation: Zod v4.
-- Job persistence: Node built-in `node:sqlite`.
-- Provider: `MetaVibesFreeProvider`, currently evidence-gated and blocked.
+- Job persistence: Node built-in node:sqlite.
+- Meta provider: evidence-gated and blocked until official authorization for unattended free-account generation is verified.
+- ComfyUI provider: local HTTP API integration for API-format workflow submission, polling, output download, and queue cancellation.
 
 ## Constraints
 
@@ -23,4 +30,6 @@ Coding agent -> MCP STDIO server -> tools -> job store / prompt engine -> provid
 - STDIO stdout is reserved for protocol messages; diagnostics belong on stderr.
 - Capability claims must be evidence-backed.
 - Paid providers are not silently enabled.
-- Client configuration must be backed up and validated before automated modification.
+- ComfyUI workflows are supplied as API-format JSON; Openvibes does not guess model/node graphs.
+- Only connect to a ComfyUI instance the user controls or is authorized to use.
+- Client configuration is updated only through documented CLI/configuration formats, with JSON backups before writes.
