@@ -1,8 +1,8 @@
 {
   "name": "openvibes-mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": false,
-  "description": "Universal open-source MCP bridge for AI creative workflows, with an evidence-gated Meta Vibes provider.",
+  "description": "Open-source MCP bridge for local ComfyUI generation and evidence-gated Meta Vibes integration.",
   "type": "module",
   "engines": {
     "node": ">=22.13.0"
@@ -20,7 +20,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "node --test dist/tests/*.test.js",
+    "test": "npm run build && node --test dist/tests/*.test.js",
     "dev": "tsx src/index.ts",
     "start": "node dist/src/index.js",
     "prepublishOnly": "npm run build && npm test"
@@ -31,7 +31,11 @@
     "vibes",
     "ai-video",
     "ai-image",
-    "coding-agents"
+    "coding-agents",
+    "comfyui",
+    "local-ai",
+    "open-source-video-generation",
+    "image-generation"
   ],
   "license": "Apache-2.0",
   "dependencies": {
