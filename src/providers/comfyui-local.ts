@@ -64,15 +64,15 @@ export class ComfyUiLocalProvider {
 
   async serverInfo(): Promise<Record<string, unknown>> {
     const [system, queue] = await Promise.all([
-      this.request('/system_stats').then((response) => response.json()),
-      this.request('/queue').then((response) => response.json()),
+      this.request('/system_stats').then((response) => readResponseJson<unknown>(response, 4 * 1024 * 1024, 'COMFYUI_SYSTEM_RESPONSE')),
+      this.request('/queue').then((response) => readResponseJson<unknown>(response, 4 * 1024 * 1024, 'COMFYUI_QUEUE_RESPONSE')),
     ]);
     return { provider: this.id, connected: true, baseUrl: this.baseUrl, system, queue };
   }
 
   async listCheckpoints(): Promise<string[]> {
     const response = await this.request('/models/checkpoints');
-    const data: unknown = await response.json();
+    const data = await readResponseJson<unknown>(response, 4 * 1024 * 1024, 'COMFYUI_CHECKPOINT_RESPONSE');
     return Array.isArray(data) ? data.filter((value): value is string => typeof value === 'string') : [];
   }
 
