@@ -30,7 +30,7 @@ COMFYUI_URL=http://127.0.0.1:8188
 OPENVIBES_OUTPUT_DIR=./generated
 ```
 
-Restart the MCP server. Call `openvibes_comfy_server_info` to verify the local engine is reachable. Call `openvibes_comfy_run_workflow` with the exported API-format workflow JSON to queue it, wait for completion, and download supported image/video outputs into the Openvibes output directory.
+Restart the MCP server. Call `openvibes_comfy_server_info` to verify the local engine is reachable. For a basic text-to-image run, call `openvibes_comfy_list_checkpoints`, choose an installed checkpoint, then call `openvibes_comfy_generate_image` with your prompt and checkpoint name. This uses ComfyUI's standard CheckpointLoaderSimple, CLIPTextEncode, KSampler, VAEDecode and SaveImage nodes. For video, image-to-video, or custom graphs, call `openvibes_comfy_run_workflow` with the complete API-format workflow JSON. Openvibes queues the job, waits for completion, downloads supported outputs, and records the job/assets.
 
 Example request structure:
 
