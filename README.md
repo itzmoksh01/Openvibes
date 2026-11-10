@@ -1,64 +1,75 @@
 # Openvibes
 
-**Universal open-source MCP bridge for AI creative workflows, with an evidence-gated Meta Vibes provider.**
+**Open-source MCP server for local AI image/video workflows, with a separately gated Meta Vibes provider.**
 
-> **Status: early development (v0.1.0).** The MCP scaffold and local job/asset infrastructure are being built. Real Meta Vibes generation is currently **blocked** because a documented and authorized unattended generation interface for ordinary free Vibes accounts has not been verified. Openvibes does not use paid Meta APIs, private endpoints, session cookies, or per-job manual browser steps.
+> **Current version: 0.2.0 — early development.** Openvibes now includes a local ComfyUI API provider for running user-supplied API-format workflows, monitoring jobs and downloading outputs. Meta Vibes free-plan automation remains blocked because an authorised unattended public interface has not been verified.
 
 Openvibes is an independent community project. It is not affiliated with, endorsed by, sponsored by, or officially supported by Meta Platforms, Inc.
 
-## Current status
+## What works
 
 | Capability | Status |
 |---|---|
-| MCP server scaffold | Implemented locally; dependency installation/build pending |
-| SQLite job history | Implemented locally using Node.js `node:sqlite` |
-| Prompt structuring | Implemented locally |
-| Meta Vibes free image generation | **Blocked / unverified** |
-| Meta Vibes free video generation | **Blocked / unverified** |
-| Meta Vibes image-to-video | **Blocked / unverified** |
-| Automatic Meta result download | Not implemented; depends on a legitimate provider route |
+| MCP STDIO server | Implemented; build/protocol tests pending |
+| Local SQLite job history | Implemented |
+| Prompt structuring | Implemented |
+| ComfyUI local server discovery | Implemented |
+| ComfyUI workflow submission | Implemented |
+| ComfyUI job polling | Implemented |
+| ComfyUI image/video output download | Implemented for supported output nodes and formats |
+| ComfyUI cancellation | Implemented for confirmed queued/running jobs |
+| Meta Vibes free image/video generation | Blocked / unverified |
+| Automatic generic workflow construction | Not implemented; supply API-format workflow JSON |
 
-## Requirements
+## Free local generation
 
-- Node.js 22.13 or later
-- npm
+The practical free route is to run [ComfyUI](https://github.com/Comfy-Org/ComfyUI) and compatible open models on your own hardware. Openvibes does not send jobs to Comfy Cloud or paid partner models.
 
-## Development
+Read [docs/COMFYUI-LOCAL.md](docs/COMFYUI-LOCAL.md) for installation, hardware considerations, and setup. For a higher-level ready-made local integration, see the official [Comfy MCP](https://github.com/Comfy-Org/comfy-mcp) project.
 
-```bash
+## Quick start
+
+~~~bash
+git clone https://github.com/itzmoksh01/Openvibes.git
+cd Openvibes
 npm install
-npm run build
+npm run typecheck
 npm test
-```
+npm link
+openvibes setup --client auto
+~~~
+
+Set COMFYUI_URL=http://127.0.0.1:8188, start ComfyUI, export a workflow in API format, and use openvibes_comfy_run_workflow. Output files are downloaded to OPENVIBES_OUTPUT_DIR (default: generated).
 
 ## MCP tools
 
-- `openvibes_get_capabilities`
-- `openvibes_generate_image`
-- `openvibes_generate_video`
-- `openvibes_animate_image`
-- `openvibes_get_job`
-- `openvibes_wait_for_job`
-- `openvibes_list_jobs`
-- `openvibes_cancel_job`
-- `openvibes_list_assets`
-- `openvibes_get_asset`
-- `openvibes_doctor`
+- openvibes_get_capabilities
+- openvibes_generate_image / openvibes_generate_video / openvibes_animate_image — Meta provider, currently blocked
+- openvibes_comfy_server_info
+- openvibes_comfy_run_workflow
+- openvibes_comfy_check_job
+- openvibes_comfy_download_outputs
+- openvibes_get_job
+- openvibes_wait_for_job
+- openvibes_list_jobs
+- openvibes_cancel_job
+- openvibes_list_assets
+- openvibes_get_asset
+- openvibes_doctor
 
-Generation tools currently return a truthful `BLOCKED` job record. They do not pretend to generate media.
+## Meta Vibes limitation
 
-## Why the Meta provider is blocked
-
-Meta publicly describes Vibes as a consumer creation experience for expressive AI-generated videos, including animating images and editing/restyling. That product description does not itself establish a public developer API or permission for unattended automation through a standard free account. See [`docs/META-FEASIBILITY.md`](docs/META-FEASIBILITY.md).
+Meta's public Vibes page describes consumer creation, remixing, and image animation. It does not establish an authorised public API for unattended generation using a standard free account. Openvibes does not use private endpoints, session-cookie replay, CAPTCHA bypass, or hidden paid fallbacks. See docs/META-FEASIBILITY.md.
 
 ## Security
 
-- No passwords or session cookies are collected.
-- No undocumented endpoints or private GraphQL operations.
+- No passwords or browser session cookies are collected.
+- No undocumented Meta endpoints or private GraphQL operations.
 - No CAPTCHA or rate-limit bypass.
 - No silent paid-provider fallback.
-- Local-first storage.
+- Local-first job and asset storage.
+- Only connect to a ComfyUI instance you control or are authorised to use.
 
 ## License
 
-Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
+Apache-2.0. See LICENSE and NOTICE.
