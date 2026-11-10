@@ -1,0 +1,4 @@
+import fs from 'node:fs';import path from 'node:path';
+const extensions=['.png','.jpg','.webp','.mp4','.webm'];
+export function ensureOutputDirs(root:string):void{for(const d of ['images','videos','image-to-video','thumbnails'])fs.mkdirSync(path.join(root,d),{recursive:true,mode:0o700});}
+export function safeAssetPath(root:string,category:'images'|'videos'|'image-to-video',filename:string):string{if(filename.includes('/')||filename.includes('\\\\')||filename==='.'||filename==='..')throw new Error('INVALID_FILENAME');if(!extensions.includes(path.extname(filename).toLowerCase()))throw new Error('UNSUPPORTED_MEDIA_EXTENSION');const base=path.resolve(root,category);const target=path.resolve(base,filename);if(!target.startsWith(base+path.sep))throw new Error('PATH_TRAVERSAL_BLOCKED');return target;}
