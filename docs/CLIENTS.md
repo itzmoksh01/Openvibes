@@ -1,19 +1,23 @@
 # Coding-agent compatibility
 
-Openvibes exposes a local MCP STDIO server. Client configuration is created only for detected clients when running `openvibes setup --client auto`; `--client all` creates supported JSON entries even if an application is not detected. Existing JSON configuration files are backed up before Openvibes writes them. Existing `openvibes` entries are left unchanged.
+Openvibes uses the standard MCP STDIO transport. Automatic setup is implemented for Muse Code, Google Antigravity CLI, Codex CLI, and Claude Code CLI. Zed can be configured manually. Other MCP-compatible clients can use the same command and arguments.
 
-| Client | Setup path | Status |
+See [CLIENT-SETUP.md](CLIENT-SETUP.md) for exact commands and configuration examples.
+
+| Client | Setup | Current status |
 |---|---|---|
-| Claude Code | `claude mcp add --transport stdio --scope user openvibes -- node <entrypoint> mcp` | Configured through official CLI when available |
-| Codex | `codex mcp add openvibes -- node <entrypoint> mcp` | Configured through official CLI when available |
-| Zed | `context_servers` in user settings JSON | Supported JSON merge |
-| Google Antigravity | `mcpServers` in `~/.gemini/config/mcp_config.json` | Supported JSON merge |
-| Muse Code | No verified official config schema | Manual configuration not automated |
+| Muse Code | Official user settings.json schema | Automatic |
+| Google Antigravity CLI | Global mcp_config.json | Automatic |
+| Codex CLI | codex mcp add | Automatic |
+| Claude Code | claude mcp add | Automatic |
+| Zed | context_servers in settings.json | Manual |
+| Other MCP hosts | STDIO command + absolute entrypoint path | Manual |
 
-The CLI checks for existing server entries and avoids replacing them. If a CLI is installed but its MCP command fails, the output includes the command error. Restart the client after setup and confirm Openvibes appears in its MCP server list.
+The setup command preserves existing entries and backs up JSON configuration before editing. It does not install or authenticate coding-agent applications. After setup, restart the client and inspect its MCP server manager.
 
-References:
+Official references:
+- [Muse Code MCP configuration](https://meta-models.github.io/muse-code-sdk/next/guides/extend/mcp-servers/)
+- [Antigravity MCP](https://antigravity.google/docs/mcp)
+- [Codex MCP](https://developers.openai.com/codex/mcp/)
 - [Claude Code MCP](https://docs.anthropic.com/en/docs/claude-code/mcp)
-- [Codex MCP](https://learn.chatgpt.com/docs/extend/mcp)
 - [Zed MCP](https://zed.dev/docs/ai/mcp)
-- [Google Antigravity MCP](https://antigravity.google/docs/mcp)
