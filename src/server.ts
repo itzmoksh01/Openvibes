@@ -232,7 +232,7 @@ const imageSchema = z.object({
   steps: z.number().int().min(1).max(100).default(24),
   cfg: z.number().min(0).max(30).default(7),
   seed: z.number().int().min(0).max(2_147_483_646).optional(),
-  timeout_seconds: z.number().int().min(1).max(600).default(300),
+  timeout_seconds: z.number().int().min(1).max(600).default(30),
 });
 server.registerTool(
   'openvibes_comfy_generate_image',
