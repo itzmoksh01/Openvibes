@@ -20,7 +20,7 @@ Openvibes is independent and is not affiliated with, endorsed by, sponsored by, 
 | Zed configuration | Automated when Zed is detected (strict JSON settings only) |
 | Cloudflare Workers AI hosted text (Llama 3.1 8B) | Implemented; 10,000 Neurons/day free allowance on eligible Free plan |
 | Cloudflare hosted image (FLUX.1-schnell) | Implemented; uses daily Workers AI allowance |
-| Cloudflare hosted text-to-speech (Aura-1) | Implemented; hosted partner model, uses account allowance and model pricing |
+| Cloudflare hosted text-to-speech (Aura-1) | Implemented; hosted partner model, billed separately at $0.015 per 1,000 characters |
 | Pollinations hosted text/image/video/audio | Implemented; requires user-owned key and available Pollen budget |
 | ComfyUI connection and system check | Implemented |
 | One-call local text-to-image | Implemented; requires a compatible installed checkpoint |
@@ -136,7 +136,7 @@ npm run build
 npm test
 ```
 
-The GitHub Actions CI workflow is configured for Ubuntu, Windows and macOS. Verify the latest workflow run before treating the package as release-ready. Do not claim a release is production-ready until CI and a real ComfyUI end-to-end generation have passed.
+GitHub Actions checks Node.js 22 and 24 on Ubuntu, plus Node.js 22 on Windows and macOS. It runs type-checking, build, tests, dependency audit, package-content verification and CLI smoke checks. A passing CI run still does not replace a live provider test. Do not call a release production-ready until the release checklist in [docs/RELEASE-CHECKLIST.md](docs/RELEASE-CHECKLIST.md) is complete.
 
 ## Security
 
