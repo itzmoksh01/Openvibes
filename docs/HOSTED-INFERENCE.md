@@ -13,7 +13,7 @@ Cloudflare Workers AI is the first option to try when you want a real hosted fre
 
 Default models: `@cf/google/gemma-4-26b-a4b-it`, `@cf/black-forest-labs/flux-1-schnell`, and `@cf/deepgram/aura-1` for TTS. FLUX.1-schnell is a 12B hosted text-to-image model; its Cloudflare model page documents the REST API and base64 image response.
 
-Cloudflare Aura-1 TTS is a hosted Deepgram partner model, not an open-weight model. It is billed separately at the published rate of $0.015 per 1,000 characters; do not assume it is covered by the Workers AI daily free Neurons allowance. For video generation, use Pollinations' live video catalogue where account balance and model availability permit. Open-weight hosted video inference with a dependable free public quota is not currently verified.
+Cloudflare Aura-1 TTS is a hosted Deepgram partner model, not an open-weight model. Its unit rate is $0.015 per 1,000 characters (1,363.64 Neurons); eligible usage can consume the 10,000-Neuron daily free allocation. Usage above that allowance requires Workers Paid and is billed at $0.011 per 1,000 Neurons. For video generation, use Pollinations' live video catalogue where account balance and model availability permit. Open-weight hosted video inference with a dependable free public quota is not currently verified.
 
 ## Set up Pollinations for video/audio and wider model choice
 
@@ -53,7 +53,7 @@ The provider may return `401` for an invalid/missing key, `402` when the account
 
 ## Online free-tier alternatives
 
-Cloudflare Workers AI currently advertises 10,000 Neurons per day on its Free Workers plan, with limits resetting at 00:00 UTC. Eligible model usage consumes this allowance; partner models such as Deepgram Aura-1 have separate published per-character pricing. It hosts open-weight text, image, text-to-speech and speech-to-text models, but its catalogue does not provide a general first-party text-to-video model. Account ID and API token are required. This is a daily allowance, not unlimited free inference. Openvibes currently implements Cloudflare hosted text, image and text-to-speech tools. Pollinations provides the optional wider model catalogue, including video/audio models subject to live availability and account budget.
+Cloudflare Workers AI currently advertises 10,000 Neurons per day on its Free Workers plan, with limits resetting at 00:00 UTC. Eligible model usage consumes this allowance; partner models such as Deepgram Aura-1 have published per-character unit pricing that is converted to Neurons. It hosts open-weight text, image, text-to-speech and speech-to-text models, but its catalogue does not provide a general first-party text-to-video model. Account ID and API token are required. This is a daily allowance, not unlimited free inference. Openvibes currently implements Cloudflare hosted text, image and text-to-speech tools. Pollinations provides the optional wider model catalogue, including video/audio models subject to live availability and account budget.
 
 Hugging Face Inference Providers currently gives free accounts $0.10/month in credits, subject to change. That is useful for testing but not a dependable free video-generation backend.
 
