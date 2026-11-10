@@ -189,7 +189,6 @@ function setupClients(args: string[], config: ReturnType<typeof getConfig>) {
 
   const entrypoint = fs.realpathSync(path.resolve(process.argv[1] ?? path.join(process.cwd(), 'dist', 'src', 'index.js')));
   const clients = detectClients();
-  const muse = clients.find((client) => client.name === 'Muse Code');
   const antigravity = clients.find((client) => client.name === 'Antigravity');
   const codex = clients.find((client) => client.name === 'Codex');
   const claude = clients.find((client) => client.name === 'Claude Code');
@@ -198,7 +197,7 @@ function setupClients(args: string[], config: ReturnType<typeof getConfig>) {
     ? ['muse', 'antigravity', 'codex', 'claude', 'zed']
     : requested === 'auto'
       ? [
-          ...(muse?.installed || muse?.configured ? ['muse'] : []),
+          'muse',
           ...(antigravity?.installed || antigravity?.configured ? ['antigravity'] : []),
           ...(codex?.installed ? ['codex'] : []),
           ...(claude?.installed ? ['claude'] : []),
