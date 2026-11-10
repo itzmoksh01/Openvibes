@@ -437,7 +437,7 @@ server.registerTool(
     description: 'Retrieve stored asset metadata by ID.',
     inputSchema: z.object({ asset_id: z.string().uuid() }),
   },
-  async ({ asset_id }) => text(store.listAssets(100).find((asset) => asset.id === asset_id) ?? {
+  async ({ asset_id }) => text(store.getAsset(asset_id) ?? {
     error: 'ASSET_NOT_FOUND',
     assetId: asset_id,
   }),
