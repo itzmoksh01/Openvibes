@@ -2,7 +2,7 @@
   "name": "openvibes-mcp",
   "version": "0.3.0",
   "private": false,
-  "description": "Open-source MCP server for Meta Vibes feasibility and local ComfyUI image/video generation.",
+  "description": "Production-focused open-source MCP server for hosted and local multimodal AI generation.",
   "type": "module",
   "engines": {
     "node": ">=22.13.0",
@@ -25,7 +25,9 @@
     "dev": "tsx src/index.ts",
     "start": "node dist/src/index.js",
     "prepare": "npm run build",
-    "prepublishOnly": "npm run build && npm test"
+    "prepublishOnly": "npm run build && npm test",
+    "check": "npm run typecheck && npm run build && npm test",
+    "audit": "npm audit --audit-level=high"
   },
   "keywords": [
     "mcp",
@@ -46,12 +48,12 @@
   },
   "license": "Apache-2.0",
   "dependencies": {
-    "@modelcontextprotocol/server": "^2.4.0",
-    "zod": "^4.2.1"
+    "@modelcontextprotocol/server": "2.4.0",
+    "zod": "4.2.1"
   },
   "devDependencies": {
-    "@types/node": "^22.19.0",
-    "tsx": "^4.20.6",
-    "typescript": "^6.0.0"
+    "@types/node": "22.19.0",
+    "tsx": "4.20.6",
+    "typescript": "6.0.0"
   }
 }
