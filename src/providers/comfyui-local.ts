@@ -96,7 +96,7 @@ export class ComfyUiLocalProvider {
     };
   }
 
-  async generateImage(options: ComfyImageOptions): Promise<ComfyRunResult> {
+  async createImageWorkflow(options: ComfyImageOptions): Promise<Record<string, unknown>> {
     const width = options.width ?? 768;
     const height = options.height ?? 768;
     const steps = options.steps ?? 24;
@@ -117,10 +117,14 @@ export class ComfyUiLocalProvider {
     if (!installed.includes(options.checkpoint)) {
       throw new Error(`CHECKPOINT_NOT_INSTALLED: ${options.checkpoint}. Installed checkpoints: ${installed.join(', ') || '(none)'}`);
     }
-    const workflow = this.buildImageWorkflow({
+    return this.buildImageWorkflow({
       prompt: options.prompt, checkpoint: options.checkpoint,
       negativePrompt: options.negativePrompt ?? '', width, height, steps, cfg, seed,
     });
+  }
+
+  async generateImage(options: ComfyImageOptions): Promise<ComfyRunResult> {
+    const workflow = await this.createImageWorkflow(options);
     return this.run(workflow, options.timeoutSeconds ?? 300);
   }
 
