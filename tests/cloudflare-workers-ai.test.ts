@@ -53,7 +53,7 @@ test('Cloudflare Aura TTS saves audio output', async () => {
     const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);
     assert.equal(url.pathname, '/client/v4/accounts/0123456789abcdef0123456789abcdef/ai/run/@cf/deepgram/aura-1');
     assert.deepEqual(JSON.parse(String(init?.body)), { text: 'Hello world' });
-    return new Response(bytes, { status: 200, headers: { 'content-type': 'audio/mpeg' } });
+    return Response.json({ success: true, result: { audio: bytes.toString('base64') } });
   }) as typeof fetch;
   try {
     const provider = new CloudflareWorkersAiProvider('0123456789abcdef0123456789abcdef', 'cf_test_token', directory);
