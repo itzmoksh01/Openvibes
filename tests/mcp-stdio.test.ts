@@ -36,6 +36,7 @@ test('built executable completes MCP initialize and tools/list over real stdio',
   const reader = createInterface({ input: child.stdout });
 
   try {
+    const initializeResponse = readLine(reader);
     child.stdin.write(JSON.stringify({
       jsonrpc: '2.0',
       id: 1,
@@ -47,7 +48,7 @@ test('built executable completes MCP initialize and tools/list over real stdio',
       },
     }) + '\n');
 
-    const initialized = JSON.parse(await readLine(reader)) as {
+    const initialized = JSON.parse(await initializeResponse) as {
       id?: number;
       result?: { protocolVersion?: string; serverInfo?: { name?: string } };
       error?: unknown;
@@ -57,7 +58,7 @@ test('built executable completes MCP initialize and tools/list over real stdio',
     assert.equal(initialized.result?.serverInfo?.name, 'openvibes');
     assert.ok(initialized.result?.protocolVersion);
 
-    child.stdin.write(JSON.stringify({
+    const toolsResponse = readLine(reader);\n    child.stdin.write(JSON.stringify({
       jsonrpc: '2.0',
       method: 'notifications/initialized',
     }) + '\n');
@@ -68,7 +69,7 @@ test('built executable completes MCP initialize and tools/list over real stdio',
       params: {},
     }) + '\n');
 
-    const listed = JSON.parse(await readLine(reader)) as {
+    const listed = JSON.parse(await toolsResponse) as {
       id?: number;
       result?: { tools?: Array<{ name: string }> };
       error?: unknown;
