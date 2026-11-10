@@ -1,8 +1,8 @@
 {
   "name": "openvibes-mcp",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": false,
-  "description": "Open-source MCP bridge for local ComfyUI generation and evidence-gated Meta Vibes integration.",
+  "description": "Open-source MCP server for local ComfyUI image and video workflows, with an evidence-gated Meta Vibes provider.",
   "type": "module",
   "engines": {
     "node": ">=22.13.0"
