@@ -17,6 +17,7 @@ Openvibes is independent and is not affiliated with, endorsed by, sponsored by, 
 | Antigravity configuration | Automated by `openvibes setup` |
 | Codex configuration | Automated when Codex CLI is installed |
 | Claude Code configuration | Automated when Claude CLI is installed |
+| Zed configuration | Automated when Zed is detected (strict JSON settings only) |
 | Zed configuration | Automated when Zed is detected |
 | ComfyUI connection and system check | Implemented |
 | One-call local text-to-image | Implemented; requires a compatible installed checkpoint |
@@ -110,7 +111,7 @@ npm run build
 npm test
 ```
 
-The GitHub Actions CI workflow runs on Ubuntu, Windows and macOS. Do not claim a release is production-ready until CI and a real ComfyUI end-to-end generation have passed.
+The GitHub Actions CI workflow is configured for Ubuntu, Windows and macOS. Verify the latest workflow run before treating the package as release-ready. Do not claim a release is production-ready until CI and a real ComfyUI end-to-end generation have passed.
 
 ## Security
 
