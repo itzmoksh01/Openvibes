@@ -104,3 +104,25 @@ test('video async job is polled and its result is downloaded', async () => {
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test('hosted media options cannot override the selected model', async () => {
+  const provider = new PollinationsProvider('sk_test', tmpdir());
+  await assert.rejects(
+    () => provider.generateMedia('image', 'a test', 'test/image', { model: 'attacker/model' }),
+    /POLLINATIONS_OPTION_INVALID: model/,
+  );
+});
+
+test('async provider job identifiers are validated before polling', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => json({ id: '../escape', status: 'pending' }, 202)) as typeof fetch;
+  try {
+    const provider = new PollinationsProvider('sk_test', tmpdir());
+    await assert.rejects(
+      () => provider.generateMedia('video', 'a test', 'test/video'),
+      /POLLINATIONS_ASYNC_JOB_ID_INVALID/,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
