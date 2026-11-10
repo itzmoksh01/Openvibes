@@ -54,5 +54,6 @@ Run only with a user-owned account and an explicit spend limit. Never place secr
 ## Current known blockers
 
 - The repository does not yet contain a committed npm lockfile; until it does, CI cannot use reproducible `npm ci` installs.
-- Live provider generation requires the user's own credentials and billing/usage approval.
 - Meta Vibes consumer free-plan unattended generation remains blocked pending an official, authorized integration.
+- Advertised MCP-host setup and a real provider generation still require end-user environment verification.
+- npm Trusted Publishing must be configured by the package owner before the first public npm release.
