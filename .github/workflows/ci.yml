@@ -29,10 +29,7 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
       - name: Install pinned dependencies
-        run: npm install --ignore-scripts --no-audit --no-fund
-      - name: Export lockfile for one-time reproducible install bootstrap
-        if: matrix.os == 'ubuntu-latest' && matrix.node == 22
-        run: node -e "const fs=require('node:fs');process.stdout.write('OPENVIBES_LOCKFILE_BASE64='+fs.readFileSync('package-lock.json').toString('base64')+'\\n')"
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Type-check
         run: npm run typecheck
       - name: Build
