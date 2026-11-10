@@ -26,7 +26,7 @@ Run only with a user-owned account and an explicit spend limit. Never place secr
 
 - [ ] Cloudflare text generation succeeds with a low-cost supported model.
 - [ ] Cloudflare image generation saves a decodable image with correct extension, MIME type and SHA-256.
-- [ ] Cloudflare TTS saves playable audio; confirm the separate per-character charge before testing.
+- [ ] Cloudflare TTS saves playable audio; check its $0.015/1,000-character unit rate, Neuron consumption and remaining daily free allowance before testing.
 - [ ] Pollinations model discovery works without credentials.
 - [ ] Pollinations text generation works with a restricted user key.
 - [ ] Pollinations image generation saves a valid image.
