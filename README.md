@@ -18,7 +18,9 @@ Openvibes is independent and is not affiliated with, endorsed by, sponsored by, 
 | Codex configuration | Automated when Codex CLI is installed |
 | Claude Code configuration | Automated when Claude CLI is installed |
 | Zed configuration | Automated when Zed is detected (strict JSON settings only) |
-| Hosted model catalogue (text/image/video/audio) | Implemented via Pollinations API |
+| Cloudflare Workers AI hosted text (Llama 3.1 8B) | Implemented; 10,000 Neurons/day free allowance on eligible Free plan |
+| Cloudflare hosted image (FLUX.1-schnell) | Implemented; uses daily Workers AI allowance |
+| Pollinations hosted text/image/video/audio | Implemented; requires user-owned key and available Pollen budget |
 | Hosted text generation | Implemented; requires user-owned Pollinations key and budget |
 | Hosted image/video/audio generation and local downloads | Implemented; model-specific availability and pricing apply |
 | ComfyUI connection and system check | Implemented |
@@ -51,7 +53,7 @@ openvibes setup --client all
 
 Restart or reload the MCP host after setup. See [Client setup](docs/CLIENT-SETUP.md) for manual configuration and verification.
 
-## Generate online without installing model weights\n\nOpenvibes can call hosted models through [Pollinations](https://github.com/pollinations/pollinations). The model weights run on the provider's infrastructure; users do not need a local GPU or to download model files. Create a user-owned API key at https://enter.pollinations.ai/keys, then set `OPENVIBES_POLLINATIONS_API_KEY` in the environment inherited by your MCP host before launching it. Do not paste the key into prompts, source code, GitHub, or public MCP config files.\n\nUse `openvibes_hosted_list_models` to inspect live text/image/video/audio catalogues, capabilities and pricing. Use `openvibes_hosted_generate_text` for text, and `openvibes_hosted_generate_media` with `kind: image`, `video` or `audio` to generate and automatically download output into `generated/`. Choose a model ID from the live catalogue; do not assume all models are free or open-weight. Pollinations generation requires a user-authorized key and available Pollen budget. The API key's budget is a spending cap, not free credits. Usage may cost Pollen, and exhausted budgets return an error. See [Hosted inference](docs/HOSTED-INFERENCE.md).\n\n## Generate an image locally
+## Generate online without installing model weights\n\nOpenvibes can call hosted models without downloading model weights. For a daily free allowance, connect [Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/): set `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`, then use `openvibes_cloudflare_generate_text` (Meta Llama 3.1 8B) or `openvibes_cloudflare_generate_image` (FLUX.1-schnell). Cloudflare currently includes 10,000 Neurons/day on its Free Workers plan, subject to quota and model availability. For a wider live model catalogue and video/audio generation, optionally connect [Pollinations](https://github.com/pollinations/pollinations): create a user-owned key at https://enter.pollinations.ai/keys and set `OPENVIBES_POLLINATIONS_API_KEY`. Pollinations usage depends on the user's Pollen balance and model prices; it is not unlimited free compute. Do not paste credentials into prompts, source code, GitHub, or public MCP config files.\n\nUse `openvibes_hosted_list_models` to inspect live text/image/video/audio catalogues, capabilities and pricing. Use `openvibes_hosted_generate_text` for text, and `openvibes_hosted_generate_media` with `kind: image`, `video` or `audio` to generate and automatically download output into `generated/`. Choose a model ID from the live catalogue; do not assume all models are free or open-weight. Pollinations generation requires a user-authorized key and available Pollen budget. The API key's budget is a spending cap, not free credits. Usage may cost Pollen, and exhausted budgets return an error. See [Hosted inference](docs/HOSTED-INFERENCE.md).\n\n## Generate an image locally
 
 1. Install ComfyUI using its official instructions: https://docs.comfy.org/get_started
 2. Start ComfyUI. Its default local API address is `http://127.0.0.1:8188`.
@@ -80,7 +82,7 @@ See [Free local ComfyUI setup](docs/COMFYUI-LOCAL.md).
 ## MCP tools
 
 **Meta status**
-- `openvibes_get_capabilities`\n- `openvibes_hosted_list_models`\n- `openvibes_hosted_generate_text`\n- `openvibes_hosted_generate_media` — image/video/audio with automatic download
+- `openvibes_get_capabilities`\n- `openvibes_cloudflare_generate_text` — hosted Llama text generation using Cloudflare's daily free allocation\n- `openvibes_cloudflare_generate_image` — hosted FLUX image generation using Cloudflare's daily free allocation\n- `openvibes_hosted_list_models`\n- `openvibes_hosted_generate_text`\n- `openvibes_hosted_generate_media` — image/video/audio with automatic download
 - `openvibes_generate_image` — intentionally returns BLOCKED until an authorized Meta Vibes route is verified
 - `openvibes_generate_video` — same evidence gate
 - `openvibes_animate_image` — same evidence gate
