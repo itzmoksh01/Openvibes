@@ -4,7 +4,7 @@ Openvibes supports online inference through Pollinations' hosted generation API.
 
 ## Best no-local-install starting point: Cloudflare Workers AI
 
-Cloudflare Workers AI is the first option to try when you want a real hosted free allowance. Its current Free Workers plan includes 10,000 Neurons per day, reset at 00:00 UTC. Openvibes includes online tools for Google Gemma 4 26B A4B text generation, FLUX.1-schnell image generation, and Deepgram Aura-1 text-to-speech. These are hosted model inference calls; no model files or local GPU are required. The free allowance is shared across Workers AI requests and is not unlimited.
+Cloudflare Workers AI is the first option to try when you want a real hosted free allowance. Its current Free Workers plan includes 10,000 Neurons per day, reset at 00:00 UTC. Openvibes includes online tools for Google Gemma 4 26B A4B text generation, FLUX.1-schnell image generation, and Deepgram Aura-1 text-to-speech. These are hosted model inference calls; no model files or local GPU are required. The free allowance is shared across Workers AI requests and is not unlimited. Current unit rates are Gemma 4 at $0.10 per million input tokens and $0.30 per million output tokens (9,091/27,273 Neurons per million tokens), FLUX.1-schnell at $0.0000528 per 512×512 tile (4.8 Neurons), and Aura-1 at $0.015 per 1,000 characters (1,363.64 Neurons). Above the 10,000-Neuron daily allowance, Workers Paid is required and usage is billed at $0.011 per 1,000 Neurons.
 
 1. Create a Cloudflare account and open Workers AI → Use REST API.
 2. Copy the Account ID and create a Workers AI API token with Workers AI Read and Edit permissions.
