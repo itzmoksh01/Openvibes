@@ -30,7 +30,7 @@ COMFYUI_URL=http://127.0.0.1:8188
 OPENVIBES_OUTPUT_DIR=./generated
 ```
 
-Restart the MCP server. Call `openvibes_comfy_server_info` to verify the local engine is reachable. For a basic text-to-image run, call `openvibes_comfy_list_checkpoints`, choose an installed checkpoint, then call `openvibes_comfy_generate_image` with your prompt and checkpoint name. This uses ComfyUI's standard CheckpointLoaderSimple, CLIPTextEncode, KSampler, VAEDecode and SaveImage nodes. For video, image-to-video, or custom graphs, call `openvibes_comfy_run_workflow` with the complete API-format workflow JSON. Openvibes queues the job, waits for completion, downloads supported outputs, and records the job/assets.
+Restart the MCP server. Call `openvibes_comfy_server_info` to verify the local engine is reachable. For a basic text-to-image run, call `openvibes_comfy_list_checkpoints`, choose an installed checkpoint, then call `openvibes_comfy_generate_image` with your prompt and checkpoint name. This uses ComfyUI's standard CheckpointLoaderSimple, CLIPTextEncode, KSampler, VAEDecode and SaveImage nodes. For video, image-to-video, or custom graphs, call `openvibes_comfy_run_workflow` with the complete API-format workflow JSON. Openvibes queues the job and records its ID. The initial tool call waits up to 30 seconds by default; if the job is still running, it returns a persistent job ID. The agent should then call `openvibes_wait_for_job` repeatedly until the state is `SAVED`; that tool downloads the outputs and records the assets automatically.
 
 Example request structure:
 
@@ -42,7 +42,7 @@ Example request structure:
       "inputs": {}
     }
   },
-  "timeout_seconds": 600
+  "timeout_seconds": 30
 }
 ```
 
@@ -82,7 +82,7 @@ These are model files, not cloud APIs. Download weights only from the official m
   - [ComfyUI image-to-video Wan workflow](https://github.com/Comfy-Org/workflow_templates/blob/main/templates/image_to_video_wan.json)
 - **LTX-2.5** — newer open model family with ComfyUI templates, but its weights use the LTX-2.x Community License rather than Apache-2.0. Official docs currently list 32 GB+ GPU VRAM and 100 GB+ free disk for the ComfyUI path. Treat it as a high-hardware option and review its separate license: [LTX-2.5 docs](https://docs.ltx.io/open-source-model/integration-tools/comfy-ui).
 
-For any video workflow, load the official template in ComfyUI, install its required nodes and model files, then export the graph in API format. Pass that JSON to openvibes_comfy_run_workflow. Do not copy a normal UI workflow JSON; the MCP tool expects the API-format graph.
+For any video workflow, load the official template in ComfyUI, install its required nodes and model files, then export the graph in API format. Pass that JSON to `openvibes_comfy_run_workflow`. Do not copy a normal UI workflow JSON; the custom-workflow tool expects the API-format graph. The built-in text-to-image tool is the exception: it generates a basic graph from the standard ComfyUI nodes.
 
 ## Hardware reality
 
@@ -90,4 +90,4 @@ As a rough guide from Comfy's current MCP documentation, a PC with a dedicated G
 
 ## API behavior
 
-Openvibes uses ComfyUI's documented `POST /prompt`, `GET /history/{prompt_id}`, `GET /view`, and `GET /system_stats` endpoints. Workflows are supplied by the user/agent as API-format JSON; Openvibes does not guess node IDs or silently fabricate a workflow. Outputs are saved locally and include SHA-256 hashes.
+Openvibes uses ComfyUI's documented `POST /prompt`, `GET /history/{prompt_id}`, `GET /view`, and `GET /system_stats` endpoints. Advanced/video workflows are supplied by the user/agent as API-format JSON; Openvibes does not guess model-specific node IDs or silently fabricate a custom workflow. The built-in image tool constructs only the standard checkpoint-based image graph. Outputs are saved locally and include SHA-256 hashes.
