@@ -59,6 +59,26 @@ comfy install
 
 Follow the repository's current client setup guide: https://github.com/Comfy-Org/comfy-mcp. This local route is free to run on your own hardware. Do not confuse it with Comfy Cloud, which uses a paid subscription for generation.
 
+## Suggested free model starting points
+
+These are model files, not cloud APIs. Download weights only from the official model publisher, review the model license, and make sure the machine has enough RAM/VRAM and disk space.
+
+### Text-to-image
+
+- **Stable Diffusion XL Base 1.0** — a practical first checkpoint for the built-in one-call image tool because it uses ComfyUI's standard CheckpointLoaderSimple node. The Hugging Face model card lists a roughly 6.94 GB safetensors checkpoint and the CreativeML Open RAIL++-M license. Read its use restrictions before commercial use: https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0
+- **FLUX.1-schnell** — Apache-2.0 licensed and capable of 1–4-step generation, but the Hugging Face files are gated behind acceptance and the main transformer file is large (about 23.8 GB). It normally needs a FLUX-specific ComfyUI workflow and is not the simple CheckpointLoader image path: https://huggingface.co/black-forest-labs/FLUX.1-schnell
+
+### Text-to-video and image-to-video
+
+- **Wan 2.1** — the official Wan repository states Apache-2.0 licensing. ComfyUI provides a smaller 1.3B text-to-video workflow as well as image-to-video and larger 14B workflows. Start with the 1.3B workflow if your hardware is limited; this is still GPU-intensive and not guaranteed to run on every machine.
+  - [Wan 2.1 official repository and license](https://github.com/Wan-Video/Wan2.1)
+  - [Comfy-Org Wan 2.1 model pack and workflow links](https://huggingface.co/Comfy-Org/Wan-2.1)
+  - [ComfyUI text-to-video Wan workflow](https://github.com/Comfy-Org/workflow_templates/blob/main/templates/text_to_video_wan.json)
+  - [ComfyUI image-to-video Wan workflow](https://github.com/Comfy-Org/workflow_templates/blob/main/templates/image_to_video_wan.json)
+- **LTX-2.5** — newer open model family with ComfyUI templates, but its weights use the LTX-2.x Community License rather than Apache-2.0. Official docs currently list 32 GB+ GPU VRAM and 100 GB+ free disk for the ComfyUI path. Treat it as a high-hardware option and review its separate license: [LTX-2.5 docs](https://docs.ltx.io/open-source-model/integration-tools/comfy-ui).
+
+For any video workflow, load the official template in ComfyUI, install its required nodes and model files, then export the graph in API format. Pass that JSON to openvibes_comfy_run_workflow. Do not copy a normal UI workflow JSON; the MCP tool expects the API-format graph.
+
 ## Hardware reality
 
 Image and especially video generation can require substantial GPU memory and disk space. If the computer lacks a suitable GPU, local generation may be slow or infeasible. Openvibes does not secretly route jobs to a paid cloud provider. Check the model's own hardware guide before downloading large weights.
