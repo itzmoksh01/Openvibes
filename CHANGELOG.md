@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0 - 2026-11-10
+
+- Added one-call local text-to-image generation using standard ComfyUI checkpoint nodes.
+- Added installed-checkpoint discovery.
+- Added a shared ComfyUI job runner with persistent status, output downloads and asset records.
+- Improved queue cancellation to verify the target prompt ID before interrupting.
+- Added clearer provider capability and doctor reporting.
+- Meta Vibes free-plan automation remains blocked pending official authorization evidence.
+- Build and live ComfyUI integration tests remain pending due to restricted outbound network access in the development environment.
+
 ## 0.2.0 - 2026-11-10
 
 - Added a local ComfyUI API provider.
@@ -7,8 +17,6 @@
 - Persisted provider prompt IDs and downloaded asset metadata.
 - Added automatic client setup for detected Claude Code, Codex, Zed, and Google Antigravity installations.
 - Added ComfyUI setup and hardware guidance.
-- Kept Meta Vibes generation blocked pending official unattended free-account authorization.
-- Build, live provider integration, and protocol verification remain pending because the development environment could not resolve GitHub/npm hosts.
 
 ## 0.1.0 - 2026-11-10
 
