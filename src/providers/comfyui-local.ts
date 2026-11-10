@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash, randomInt, randomUUID } from 'node:crypto';
 import { safeAssetPath } from '../services/assets.js';
+import { readResponseBuffer, readResponseJson, readResponseText } from '../services/http.js';
 
 export interface ComfyOutput {
   filename: string;
@@ -55,7 +56,8 @@ export class ComfyUiLocalProvider {
     const url = new URL(route, this.baseUrl);
     const response = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
     if (!response.ok) {
-      throw new Error(`COMFYUI_HTTP_${response.status}: ${(await response.text()).slice(0, 1200)}`);
+      const detail = await readResponseText(response, 4096, 'COMFYUI_HTTP_ERROR');
+      throw new Error(`COMFYUI_HTTP_${response.status}: ${detail.slice(0, 1200)}`);
     }
     return response;
   }
@@ -155,7 +157,7 @@ export class ComfyUiLocalProvider {
   async getHistory(promptId: string): Promise<ComfyHistory | undefined> {
     if (!/^[a-zA-Z0-9-]{8,80}$/.test(promptId)) throw new Error('INVALID_PROMPT_ID');
     const response = await this.request(`/history/${encodeURIComponent(promptId)}`);
-    const history = await response.json() as Record<string, ComfyHistory>;
+    const history = await readResponseJson<Record<string, ComfyHistory>>(response, 16 * 1024 * 1024, 'COMFYUI_HISTORY_RESPONSE');
     return history[promptId];
   }
 
@@ -232,7 +234,7 @@ export class ComfyUiLocalProvider {
         filename: file.filename, subfolder: file.subfolder ?? '', type: file.type ?? 'output',
       });
       const response = await this.request(`/view?${query.toString()}`, undefined, 120_000);
-      const bytes = Buffer.from(await response.arrayBuffer());
+      const bytes = await readResponseBuffer(response, 512 * 1024 * 1024, 'COMFYUI_MEDIA');\n      if (!bytes.length) throw new Error('COMFYUI_EMPTY_MEDIA_OUTPUT');
       await fs.mkdir(path.dirname(target), { recursive: true, mode: 0o700 });
 
       let finalPath = target;
