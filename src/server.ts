@@ -1,37 +1,473 @@
-import {McpServer} from '@modelcontextprotocol/server';
+import { randomInt } from 'node:crypto';
+import { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import {getConfig} from './config.js';
-import {Store} from './database/store.js';
-import {MetaVibesFreeProvider} from './providers/meta-vibes-free.js';
-import {ComfyUiLocalProvider} from './providers/comfyui-local.js';
-import {optimizePrompt} from './services/prompt-engine.js';
-import {diagnose} from './services/diagnostics.js';
-import type {JobKind} from './types.js';
+import { getConfig } from './config.js';
+import { Store } from './database/store.js';
+import { MetaVibesFreeProvider } from './providers/meta-vibes-free.js';
+import { ComfyUiLocalProvider } from './providers/comfyui-local.js';
+import { optimizePrompt } from './services/prompt-engine.js';
+import { diagnose } from './services/diagnostics.js';
+import type { JobKind } from './types.js';
 
-const config=getConfig();
-const store=new Store(config.databasePath);
-const provider=new MetaVibesFreeProvider();
-const comfy=new ComfyUiLocalProvider(process.env.COMFYUI_URL??'http://127.0.0.1:8188',config.outputDir);
-const server=new McpServer({name:'openvibes',version:'0.2.0'});
-const text=(v:unknown)=>({content:[{type:'text' as const,text:(JSON.stringify(v,null,2)??String(v))}]});
-server.registerTool('openvibes_get_capabilities',{description:'Return verified provider capabilities. Meta Vibes is blocked pending authorized access; ComfyUI Local is available when a local engine and workflow are configured.',inputSchema:z.object({})},async()=>text({metaVibes:await provider.getCapabilities(),comfyUiLocal:{provider:'comfyui-local',status:'CONFIGURABLE',description:'Self-hosted ComfyUI; no per-generation cloud charge, but requires compatible local models and hardware.'}}));
-const schema=z.object({prompt:z.string().min(1).max(10000),style:z.string().max(300).optional(),subject:z.string().max(1000).optional(),composition:z.string().max(1000).optional(),lighting:z.string().max(1000).optional(),aspect_ratio:z.string().max(30).optional(),camera_movement:z.string().max(1000).optional(),duration:z.number().int().min(1).max(120).optional(),scene:z.string().max(2000).optional(),action:z.string().max(2000).optional(),reference_images:z.array(z.string().max(2000)).max(4).optional(),output_count:z.number().int().min(1).max(4).optional()});
-async function blocked(kind:JobKind,input:z.infer<typeof schema>){const optimized=optimizePrompt(kind,input);const cap=await provider.getCapabilities();const job=store.createJob({kind,state:'BLOCKED',provider:provider.id,prompt:input.prompt,optimizedPrompt:optimized,input,errorCode:'META_VIBES_AUTOMATION_UNVERIFIED',errorMessage:cap.reason});return text({success:false,state:job.state,jobId:job.id,provider:provider.id,originalPrompt:job.prompt,optimizedPrompt:job.optimizedPrompt,error:{code:job.errorCode,message:job.errorMessage},nextStep:'Use openvibes_comfy_run_workflow with an API-format ComfyUI workflow, or see docs/COMFYUI-LOCAL.md.'});}
-server.registerTool('openvibes_generate_image',{description:'Generate using Meta Vibes free plan. Currently BLOCKED because no authorized unattended API has been verified.',inputSchema:schema},async(input)=>blocked('image',input));
-server.registerTool('openvibes_generate_video',{description:'Generate using Meta Vibes free plan. Currently BLOCKED because no authorized unattended API has been verified.',inputSchema:schema},async(input)=>blocked('video',input));
-server.registerTool('openvibes_animate_image',{description:'Animate an image using Meta Vibes free plan. Currently BLOCKED pending authorized unattended access.',inputSchema:schema.extend({source_image:z.string().min(1).max(2000)})},async(input)=>blocked('image-to-video',input));
+const config = getConfig();
+const store = new Store(config.databasePath);
+const metaVibes = new MetaVibesFreeProvider();
+const comfy = new ComfyUiLocalProvider(process.env.COMFYUI_URL ?? 'http://127.0.0.1:8188', config.outputDir);
+const server = new McpServer({ name: 'openvibes', version: '0.3.0' });
+const text = (value: unknown) => ({
+  content: [{ type: 'text' as const, text: JSON.stringify(value, null, 2) }],
+});
 
-server.registerTool('openvibes_comfy_server_info',{description:'Check the local ComfyUI server, hardware/system information and queue. Uses COMFYUI_URL, default http://127.0.0.1:8188.',inputSchema:z.object({})},async()=>{try{return text(await comfy.serverInfo());}catch(e){return text({success:false,provider:comfy.id,error:String(e),setup:'Install and start ComfyUI locally; see docs/COMFYUI-LOCAL.md.'});}});
-const workflowSchema=z.object({workflow:z.record(z.string(),z.unknown()),prompt:z.string().min(1).max(10000).default('ComfyUI workflow'),kind:z.enum(['image','video','image-to-video']).default('image'),timeout_seconds:z.number().int().min(1).max(600).default(300)});
-server.registerTool('openvibes_comfy_run_workflow',{description:'Run a complete API-format ComfyUI workflow on the local machine. The prompt field is only a job-history label; the actual generation prompt must be inside the workflow graph. Wait for completion, download image/video outputs, and persist job/assets. No paid cloud fallback.',inputSchema:workflowSchema},async(input)=>{const optimized=optimizePrompt(input.kind,{prompt:input.prompt});const job=store.createJob({kind:input.kind,state:'SUBMITTING',provider:comfy.id,prompt:input.prompt,optimizedPrompt:optimized,input:{workflow:input.workflow}});let providerPromptId:string|undefined;try{const submitted=await comfy.submit(input.workflow);providerPromptId=submitted.promptId;store.updateJob(job.id,'SUBMITTED',{promptId:submitted.promptId,queueNumber:submitted.queueNumber});const history=await comfy.wait(submitted.promptId,input.timeout_seconds);store.updateJob(job.id,'DOWNLOADING',{promptId:submitted.promptId});const outputs=await comfy.download(submitted.promptId,history);const assets=outputs.map(o=>store.addAsset({jobId:job.id,filename:o.filename,mimeType:o.mimeType,sizeBytes:o.bytes,sha256:o.sha256,path:o.path,metadata:{promptId:submitted.promptId,provider:comfy.id}}));store.updateJob(job.id,'SAVED',{promptId:submitted.promptId,outputs,assets});return text({success:true,state:'SAVED',jobId:job.id,provider:comfy.id,promptId:submitted.promptId,outputs,assets});}catch(e){const message=String(e);const pending=message.includes('COMFYUI_WAIT_TIMEOUT');store.updateJob(job.id,pending?'PROCESSING':'FAILED',{promptId:providerPromptId,error:message},pending?'COMFYUI_WAIT_TIMEOUT':'COMFYUI_JOB_FAILED',message);return text({success:false,state:pending?'PROCESSING':'FAILED',jobId:job.id,provider:comfy.id,promptId:providerPromptId,error:message,nextStep:pending?'The workflow may still be running. Use openvibes_comfy_check_job with the ComfyUI prompt ID stored in the job input/output.':'Check the ComfyUI console and workflow node errors.'});}});
-server.registerTool('openvibes_comfy_check_job',{description:'Check a local ComfyUI prompt ID without starting another generation.',inputSchema:z.object({prompt_id:z.string().min(8).max(80)})},async({prompt_id})=>{try{const h=await comfy.getHistory(prompt_id);if(!h)return text({promptId:prompt_id,state:'PROCESSING'});const status=h.status as Record<string,unknown>|undefined;return text({promptId:prompt_id,state:status?.completed?'COMPLETED':status?.status_str??'PROCESSING',status,outputs:h.outputs??{}});}catch(e){return text({success:false,promptId:prompt_id,error:String(e)});}});
-server.registerTool('openvibes_comfy_download_outputs',{description:'Download outputs for a completed local ComfyUI prompt into the configured Openvibes output directory and record them in the asset library.',inputSchema:z.object({prompt_id:z.string().min(8).max(80),job_id:z.string().uuid()})},async({prompt_id,job_id})=>{try{const job=store.getJob(job_id);if(!job)return text({success:false,error:'JOB_NOT_FOUND',jobId:job_id});if(job.provider!==comfy.id)return text({success:false,error:'WRONG_PROVIDER',jobId:job_id});const h=await comfy.getHistory(prompt_id);if(!h)return text({success:false,state:'PROCESSING',promptId:prompt_id});const outputs=await comfy.download(prompt_id,h);const assets=outputs.map(o=>store.addAsset({jobId:job_id,filename:o.filename,mimeType:o.mimeType,sizeBytes:o.bytes,sha256:o.sha256,path:o.path,metadata:{promptId:prompt_id,provider:comfy.id}}));store.updateJob(job_id,'SAVED',{promptId:prompt_id,outputs,assets});return text({success:true,state:'SAVED',outputs,assets});}catch(e){return text({success:false,error:String(e)});}});
+const generationSchema = z.object({
+  prompt: z.string().min(1).max(10_000),
+  style: z.string().max(300).optional(),
+  subject: z.string().max(1000).optional(),
+  composition: z.string().max(1000).optional(),
+  lighting: z.string().max(1000).optional(),
+  aspect_ratio: z.string().max(30).optional(),
+  camera_movement: z.string().max(1000).optional(),
+  duration: z.number().int().min(1).max(120).optional(),
+  scene: z.string().max(2000).optional(),
+  action: z.string().max(2000).optional(),
+  reference_images: z.array(z.string().max(2000)).max(4).optional(),
+  output_count: z.number().int().min(1).max(4).optional(),
+});
 
-server.registerTool('openvibes_get_job',{description:'Retrieve a persisted job by ID.',inputSchema:z.object({job_id:z.string().uuid()})},async({job_id})=>text(store.getJob(job_id)??{error:'JOB_NOT_FOUND',jobId:job_id}));
-server.registerTool('openvibes_wait_for_job',{description:'Wait for a persisted ComfyUI job, download its outputs and update its state. For other providers, return the stored job without inventing progress.',inputSchema:z.object({job_id:z.string().uuid(),timeout_seconds:z.number().int().min(1).max(600).default(60)})},async({job_id,timeout_seconds})=>{const job=store.getJob(job_id);if(!job)return text({error:'JOB_NOT_FOUND',jobId:job_id});if(job.provider!==comfy.id||job.state==='SAVED'||job.state==='FAILED'||job.state==='CANCELLED')return text(job);try{const data=job.outputJson?JSON.parse(job.outputJson) as {promptId?:string}:{};if(!data.promptId)return text(job);const history=await comfy.wait(data.promptId,timeout_seconds);const outputs=await comfy.download(data.promptId,history);const assets=outputs.map(o=>store.addAsset({jobId:job.id,filename:o.filename,mimeType:o.mimeType,sizeBytes:o.bytes,sha256:o.sha256,path:o.path,metadata:{promptId:data.promptId,provider:comfy.id}}));store.updateJob(job.id,'SAVED',{promptId:data.promptId,outputs,assets});return text({success:true,state:'SAVED',jobId:job.id,outputs,assets});}catch(e){const message=String(e);if(message.includes('COMFYUI_WAIT_TIMEOUT'))return text({success:false,state:'PROCESSING',jobId:job.id,promptId:JSON.parse(job.outputJson??'{}').promptId,error:message});store.updateJob(job.id,'FAILED',undefined,'COMFYUI_JOB_FAILED',message);return text({success:false,state:'FAILED',jobId:job.id,error:message});}});
-server.registerTool('openvibes_list_jobs',{description:'List recent generation jobs.',inputSchema:z.object({limit:z.number().int().min(1).max(100).default(25)})},async({limit})=>text(store.listJobs(limit)));
-server.registerTool('openvibes_cancel_job',{description:'Cancel a queued or currently running local ComfyUI job. A running ComfyUI job is interrupted only after its prompt ID is confirmed as the active queue item.',inputSchema:z.object({job_id:z.string().uuid()})},async({job_id})=>{const job=store.getJob(job_id);if(!job)return text({error:'JOB_NOT_FOUND',jobId:job_id});if(job.provider!==comfy.id||!job.outputJson)return text({success:false,state:job.state,message:'This job is not an active ComfyUI job.'});try{const data=JSON.parse(job.outputJson) as {promptId?:string};if(!data.promptId)return text({success:false,state:job.state,message:'No ComfyUI prompt ID is stored for this job.'});const result=await comfy.cancel(data.promptId);if(result.cancelled)store.updateJob(job_id,'CANCELLED',{promptId:data.promptId,cancelAction:result.action});return text({success:result.cancelled,state:result.cancelled?'CANCELLED':job.state,...result,jobId:job_id,promptId:data.promptId});}catch(e){return text({success:false,jobId:job_id,error:String(e)});}});
-server.registerTool('openvibes_list_assets',{description:'List media assets stored by Openvibes.',inputSchema:z.object({limit:z.number().int().min(1).max(100).default(50)})},async({limit})=>text(store.listAssets(limit)));
-server.registerTool('openvibes_get_asset',{description:'Retrieve stored asset metadata by ID.',inputSchema:z.object({asset_id:z.string().uuid()})},async({asset_id})=>text(store.listAssets(100).find(a=>a.id===asset_id)??{error:'ASSET_NOT_FOUND',assetId:asset_id}));
-server.registerTool('openvibes_doctor',{description:'Diagnose runtime and local storage without exposing secrets.',inputSchema:z.object({})},async()=>text({...diagnose(config),providers:{metaVibes:(await provider.getCapabilities()).status,comfyUiLocal:{configured:Boolean(process.env.COMFYUI_URL??true),url:process.env.COMFYUI_URL??'http://127.0.0.1:8188'}}}));
-export {server,store};
+function parseJobOutput(jobId: string): Record<string, unknown> {
+  const job = store.getJob(jobId);
+  if (!job?.outputJson) return {};
+  try {
+    const value: unknown = JSON.parse(job.outputJson);
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? value as Record<string, unknown>
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveAssets(jobId: string, promptId: string, outputs: Awaited<ReturnType<ComfyUiLocalProvider['download']>>) {
+  return outputs.map((output) => store.addAsset({
+    jobId,
+    filename: output.filename,
+    mimeType: output.mimeType,
+    sizeBytes: output.bytes,
+    sha256: output.sha256,
+    path: output.path,
+    metadata: { promptId, provider: comfy.id },
+  }));
+}
+
+async function blockedMeta(kind: JobKind, input: z.infer<typeof generationSchema>) {
+  const optimizedPrompt = optimizePrompt(kind, input);
+  const capabilities = await metaVibes.getCapabilities();
+  const job = store.createJob({
+    kind,
+    state: 'BLOCKED',
+    provider: metaVibes.id,
+    prompt: input.prompt,
+    optimizedPrompt,
+    input,
+    errorCode: 'META_VIBES_AUTOMATION_UNVERIFIED',
+    errorMessage: capabilities.reason,
+  });
+  return text({
+    success: false,
+    state: job.state,
+    jobId: job.id,
+    provider: metaVibes.id,
+    originalPrompt: job.prompt,
+    optimizedPrompt: job.optimizedPrompt,
+    error: { code: job.errorCode, message: job.errorMessage },
+    nextStep: 'Use the local ComfyUI tools, or see docs/META-FEASIBILITY.md. Openvibes never substitutes a paid API.',
+  });
+}
+
+async function runComfyWorkflow(
+  kind: JobKind,
+  prompt: string,
+  workflow: Record<string, unknown>,
+  timeoutSeconds: number,
+) {
+  const job = store.createJob({
+    kind,
+    state: 'SUBMITTING',
+    provider: comfy.id,
+    prompt,
+    optimizedPrompt: optimizePrompt(kind, { prompt }),
+    input: { workflow },
+  });
+
+  let promptId: string | undefined;
+  try {
+    const submitted = await comfy.submit(workflow);
+    promptId = submitted.promptId;
+    store.updateJob(job.id, 'SUBMITTED', {
+      promptId,
+      ...(typeof submitted.queueNumber === 'number' ? { queueNumber: submitted.queueNumber } : {}),
+    });
+
+    const history = await comfy.wait(promptId, timeoutSeconds);
+    store.updateJob(job.id, 'DOWNLOADING', { promptId });
+    const outputs = await comfy.download(promptId, history);
+    const assets = saveAssets(job.id, promptId, outputs);
+    store.updateJob(job.id, 'SAVED', { promptId, outputs, assets });
+    return text({
+      success: true,
+      state: 'SAVED',
+      jobId: job.id,
+      provider: comfy.id,
+      promptId,
+      outputs,
+      assets,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const pending = message.includes('COMFYUI_WAIT_TIMEOUT');
+    store.updateJob(
+      job.id,
+      pending ? 'PROCESSING' : 'FAILED',
+      { ...(promptId ? { promptId } : {}), error: message },
+      pending ? 'COMFYUI_WAIT_TIMEOUT' : 'COMFYUI_JOB_FAILED',
+      message,
+    );
+    return text({
+      success: false,
+      state: pending ? 'PROCESSING' : 'FAILED',
+      jobId: job.id,
+      ...(promptId ? { promptId } : {}),
+      provider: comfy.id,
+      error: message,
+      nextStep: pending
+        ? 'Use openvibes_wait_for_job with this jobId to continue waiting and download results automatically.'
+        : 'Check the ComfyUI console, installed models, and workflow node errors.',
+    });
+  }
+}
+
+server.registerTool(
+  'openvibes_get_capabilities',
+  {
+    description: 'Show verified provider status. Meta Vibes free-plan automation is blocked until Meta documents and authorizes it. Local ComfyUI is the free self-hosted alternative.',
+    inputSchema: z.object({}),
+  },
+  async () => text({
+    metaVibes: await metaVibes.getCapabilities(),
+    comfyUiLocal: {
+      provider: comfy.id,
+      status: 'CONDITIONAL',
+      imageGeneration: 'Available when ComfyUI is running and a compatible checkpoint is installed.',
+      videoGeneration: 'Available when a compatible video workflow and its required models/custom nodes are installed.',
+      billing: 'No per-generation provider fee for local inference; hardware and electricity are yours.',
+    },
+  }),
+);
+
+server.registerTool(
+  'openvibes_generate_image',
+  {
+    description: 'Generate with Meta Vibes free plan. Currently returns BLOCKED because authorized unattended free-plan API access has not been verified.',
+    inputSchema: generationSchema,
+  },
+  async (input) => blockedMeta('image', input),
+);
+server.registerTool(
+  'openvibes_generate_video',
+  {
+    description: 'Generate with Meta Vibes free plan. Currently returns BLOCKED because authorized unattended free-plan API access has not been verified.',
+    inputSchema: generationSchema,
+  },
+  async (input) => blockedMeta('video', input),
+);
+server.registerTool(
+  'openvibes_animate_image',
+  {
+    description: 'Animate an image with Meta Vibes free plan. Currently returns BLOCKED pending an authorized unattended interface.',
+    inputSchema: generationSchema.extend({ source_image: z.string().min(1).max(2000) }),
+  },
+  async (input) => blockedMeta('image-to-video', input),
+);
+
+server.registerTool(
+  'openvibes_comfy_server_info',
+  {
+    description: 'Check the local ComfyUI server, hardware information and execution queue. Defaults to http://127.0.0.1:8188 or COMFYUI_URL.',
+    inputSchema: z.object({}),
+  },
+  async () => {
+    try {
+      return text(await comfy.serverInfo());
+    } catch (error) {
+      return text({
+        success: false,
+        provider: comfy.id,
+        error: error instanceof Error ? error.message : String(error),
+        setup: 'Install and start ComfyUI locally, then see docs/COMFYUI-LOCAL.md.',
+      });
+    }
+  },
+);
+server.registerTool(
+  'openvibes_comfy_list_checkpoints',
+  {
+    description: 'List checkpoint models installed in the local ComfyUI instance. Use one of these exact names with openvibes_comfy_generate_image.',
+    inputSchema: z.object({}),
+  },
+  async () => {
+    try {
+      const checkpoints = await comfy.listCheckpoints();
+      return text({ success: true, provider: comfy.id, checkpoints });
+    } catch (error) {
+      return text({ success: false, provider: comfy.id, error: error instanceof Error ? error.message : String(error) });
+    }
+  },
+);
+
+const imageSchema = z.object({
+  prompt: z.string().min(1).max(10_000),
+  checkpoint: z.string().min(1).max(500),
+  negative_prompt: z.string().max(5000).default(''),
+  width: z.number().int().min(256).max(2048).multipleOf(8).default(768),
+  height: z.number().int().min(256).max(2048).multipleOf(8).default(768),
+  steps: z.number().int().min(1).max(100).default(24),
+  cfg: z.number().min(0).max(30).default(7),
+  seed: z.number().int().min(0).max(2_147_483_646).optional(),
+  timeout_seconds: z.number().int().min(1).max(600).default(300),
+});
+server.registerTool(
+  'openvibes_comfy_generate_image',
+  {
+    description: 'Generate a text-to-image result in one call using standard ComfyUI nodes and an installed checkpoint. Waits for the job, downloads the image locally and saves it to the Openvibes asset library. No cloud fallback.',
+    inputSchema: imageSchema,
+  },
+  async (input) => {
+    try {
+      const checkpoints = await comfy.listCheckpoints();
+      if (!checkpoints.includes(input.checkpoint)) {
+        return text({
+          success: false,
+          error: 'CHECKPOINT_NOT_INSTALLED',
+          requested: input.checkpoint,
+          installed: checkpoints,
+          nextStep: 'Call openvibes_comfy_list_checkpoints and choose an installed checkpoint.',
+        });
+      }
+      const workflow: Record<string, unknown> = {
+        '1': { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: input.checkpoint } },
+        '2': { class_type: 'CLIPTextEncode', inputs: { text: input.prompt, clip: ['1', 1] } },
+        '3': { class_type: 'CLIPTextEncode', inputs: { text: input.negative_prompt, clip: ['1', 1] } },
+        '4': { class_type: 'EmptyLatentImage', inputs: { width: input.width, height: input.height, batch_size: 1 } },
+        '5': {
+          class_type: 'KSampler',
+          inputs: {
+            seed: input.seed ?? randomInt(0, 2 ** 31 - 1),
+            steps: input.steps,
+            cfg: input.cfg,
+            sampler_name: 'euler',
+            scheduler: 'normal',
+            denoise: 1,
+            model: ['1', 0],
+            positive: ['2', 0],
+            negative: ['3', 0],
+            latent_image: ['4', 0],
+          },
+        },
+        '6': { class_type: 'VAEDecode', inputs: { samples: ['5', 0], vae: ['1', 2] } },
+        '7': { class_type: 'SaveImage', inputs: { filename_prefix: 'openvibes', images: ['6', 0] } },
+      };
+      return await runComfyWorkflow('image', input.prompt, workflow, input.timeout_seconds);
+    } catch (error) {
+      return text({ success: false, provider: comfy.id, error: error instanceof Error ? error.message : String(error) });
+    }
+  },
+);
+
+const workflowSchema = z.object({
+  workflow: z.record(z.string(), z.unknown()),
+  prompt: z.string().min(1).max(10_000).default('ComfyUI workflow'),
+  kind: z.enum(['image', 'video', 'image-to-video']).default('image'),
+  timeout_seconds: z.number().int().min(1).max(600).default(300),
+});
+server.registerTool(
+  'openvibes_comfy_run_workflow',
+  {
+    description: 'Run an API-format ComfyUI workflow on the local machine. Supports compatible image, video and image-to-video graphs; waits, downloads media into OPENVIBES_OUTPUT_DIR, and records job/assets. Requires a running local ComfyUI and compatible models/custom nodes.',
+    inputSchema: workflowSchema,
+  },
+  async (input) => runComfyWorkflow(input.kind, input.prompt, input.workflow, input.timeout_seconds),
+);
+
+server.registerTool(
+  'openvibes_comfy_check_job',
+  {
+    description: 'Check a local ComfyUI prompt ID without starting another generation.',
+    inputSchema: z.object({ prompt_id: z.string().min(8).max(80) }),
+  },
+  async ({ prompt_id }) => {
+    try {
+      const history = await comfy.getHistory(prompt_id);
+      if (!history) return text({ promptId: prompt_id, state: 'PROCESSING' });
+      const status = history.status as Record<string, unknown> | undefined;
+      return text({
+        promptId: prompt_id,
+        state: status?.completed === true ? 'COMPLETED' : status?.status_str ?? 'PROCESSING',
+        status,
+        outputs: history.outputs ?? {},
+      });
+    } catch (error) {
+      return text({ success: false, promptId: prompt_id, error: error instanceof Error ? error.message : String(error) });
+    }
+  },
+);
+
+server.registerTool(
+  'openvibes_comfy_download_outputs',
+  {
+    description: 'Download outputs for a finished local ComfyUI job and record them in the Openvibes asset library. The prompt ID must belong to the supplied Openvibes job.',
+    inputSchema: z.object({ prompt_id: z.string().min(8).max(80), job_id: z.string().uuid() }),
+  },
+  async ({ prompt_id, job_id }) => {
+    try {
+      const job = store.getJob(job_id);
+      if (!job || job.provider !== comfy.id) return text({ success: false, error: 'COMFY_JOB_NOT_FOUND', jobId: job_id });
+      const saved = parseJobOutput(job_id);
+      if (saved.promptId !== prompt_id) return text({ success: false, error: 'PROMPT_JOB_MISMATCH' });
+      if (job.state === 'SAVED') return text({ success: true, state: 'SAVED', jobId: job_id, ...saved });
+      const history = await comfy.getHistory(prompt_id);
+      if (!history) return text({ success: false, state: 'PROCESSING', promptId: prompt_id });
+      const status = history.status as Record<string, unknown> | undefined;
+      if (!(status?.completed === true || String(status?.status_str ?? '').toLowerCase() === 'success')) {
+        return text({ success: false, state: status?.status_str ?? 'PROCESSING', promptId: prompt_id });
+      }
+      const outputs = await comfy.download(prompt_id, history);
+      const assets = saveAssets(job_id, prompt_id, outputs);
+      store.updateJob(job_id, 'SAVED', { promptId: prompt_id, outputs, assets });
+      return text({ success: true, state: 'SAVED', jobId: job_id, outputs, assets });
+    } catch (error) {
+      return text({ success: false, error: error instanceof Error ? error.message : String(error) });
+    }
+  },
+);
+
+server.registerTool(
+  'openvibes_get_job',
+  {
+    description: 'Retrieve a persisted job by ID.',
+    inputSchema: z.object({ job_id: z.string().uuid() }),
+  },
+  async ({ job_id }) => text(store.getJob(job_id) ?? { error: 'JOB_NOT_FOUND', jobId: job_id }),
+);
+server.registerTool(
+  'openvibes_wait_for_job',
+  {
+    description: 'Wait for a persisted local ComfyUI job, then download and save its media automatically. Returns immediately for terminal or non-Comfy jobs.',
+    inputSchema: z.object({
+      job_id: z.string().uuid(),
+      timeout_seconds: z.number().int().min(1).max(600).default(30),
+    }),
+  },
+  async ({ job_id, timeout_seconds }) => {
+    const job = store.getJob(job_id);
+    if (!job) return text({ error: 'JOB_NOT_FOUND', jobId: job_id });
+    if (job.provider !== comfy.id || ['SAVED', 'FAILED', 'CANCELLED', 'BLOCKED'].includes(job.state)) {
+      return text(job);
+    }
+    const stored = parseJobOutput(job_id);
+    const promptId = typeof stored.promptId === 'string' ? stored.promptId : undefined;
+    if (!promptId) return text(job);
+    try {
+      const history = await comfy.wait(promptId, timeout_seconds);
+      store.updateJob(job_id, 'DOWNLOADING', { promptId });
+      const outputs = await comfy.download(promptId, history);
+      const assets = saveAssets(job_id, promptId, outputs);
+      store.updateJob(job_id, 'SAVED', { promptId, outputs, assets });
+      return text({ success: true, state: 'SAVED', jobId: job_id, promptId, outputs, assets });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes('COMFYUI_WAIT_TIMEOUT')) {
+        store.updateJob(job_id, 'PROCESSING', { promptId, error: message }, 'COMFYUI_WAIT_TIMEOUT', message);
+        return text({ success: false, state: 'PROCESSING', jobId: job_id, promptId, error: message });
+      }
+      store.updateJob(job_id, 'FAILED', { promptId, error: message }, 'COMFYUI_JOB_FAILED', message);
+      return text({ success: false, state: 'FAILED', jobId: job_id, promptId, error: message });
+    }
+  },
+);
+server.registerTool(
+  'openvibes_cancel_job',
+  {
+    description: 'Cancel a queued or currently running local ComfyUI job. Does not interrupt other ComfyUI jobs.',
+    inputSchema: z.object({ job_id: z.string().uuid() }),
+  },
+  async ({ job_id }) => {
+    const job = store.getJob(job_id);
+    if (!job) return text({ error: 'JOB_NOT_FOUND', jobId: job_id });
+    if (job.provider !== comfy.id) return text({ success: false, state: job.state, message: 'This job is not a local ComfyUI job.' });
+    const stored = parseJobOutput(job_id);
+    const promptId = typeof stored.promptId === 'string' ? stored.promptId : undefined;
+    if (!promptId) return text({ success: false, state: job.state, message: 'No ComfyUI prompt ID is stored for this job.' });
+    try {
+      const result = await comfy.cancel(promptId);
+      if (result.cancelled) store.updateJob(job_id, 'CANCELLED', { promptId, cancelAction: result.action });
+      return text({ success: result.cancelled, jobId: job_id, promptId, ...result });
+    } catch (error) {
+      return text({ success: false, jobId: job_id, error: error instanceof Error ? error.message : String(error) });
+    }
+  },
+);
+server.registerTool(
+  'openvibes_list_jobs',
+  {
+    description: 'List recent generation jobs.',
+    inputSchema: z.object({ limit: z.number().int().min(1).max(100).default(25) }),
+  },
+  async ({ limit }) => text(store.listJobs(limit)),
+);
+server.registerTool(
+  'openvibes_list_assets',
+  {
+    description: 'List media assets stored by Openvibes.',
+    inputSchema: z.object({ limit: z.number().int().min(1).max(100).default(50) }),
+  },
+  async ({ limit }) => text(store.listAssets(limit)),
+);
+server.registerTool(
+  'openvibes_get_asset',
+  {
+    description: 'Retrieve stored asset metadata by ID.',
+    inputSchema: z.object({ asset_id: z.string().uuid() }),
+  },
+  async ({ asset_id }) => text(store.listAssets(100).find((asset) => asset.id === asset_id) ?? {
+    error: 'ASSET_NOT_FOUND',
+    assetId: asset_id,
+  }),
+);
+server.registerTool(
+  'openvibes_doctor',
+  {
+    description: 'Diagnose runtime and local storage without exposing secrets. Does not claim ComfyUI is online unless its server check succeeds.',
+    inputSchema: z.object({}),
+  },
+  async () => {
+    let comfyUi: Record<string, unknown>;
+    try {
+      const info = await comfy.serverInfo();
+      comfyUi = { connected: true, baseUrl: comfy.baseUrl, queue: info.queue };
+    } catch (error) {
+      comfyUi = {
+        connected: false,
+        baseUrl: comfy.baseUrl,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+    return text({
+      ...diagnose(config),
+      providers: {
+        metaVibes: (await metaVibes.getCapabilities()).status,
+        comfyUiLocal: comfyUi,
+      },
+    });
+  },
+);
+
+export { server, store };
