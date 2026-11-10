@@ -18,6 +18,15 @@ These are consumer product capabilities. They do not establish that an ordinary 
 | [Meta announcement, 2025-09-25](https://about.fb.com/news/2025/09/introducing-vibes-ai-videos/) | Vibes launched as a creation and sharing experience in Meta AI and meta.ai | An MCP integration or unattended API |
 | [Meta Model API terms](https://dev.meta.ai/legal/terms-of-service) | Separate terms apply to the Meta Model API | Does not grant Vibes consumer-account access or free Vibes video generation |
 
+## Important distinction: Muse Image is not Meta Vibes Free
+
+Meta separately documents **Muse Image** as a developer API on Meta Model API. Its official pricing page currently lists **US$0.01 per successfully returned image**. The image-generation guide documents OpenAI-compatible image endpoints and requires a Meta Model API key. This is a separate paid developer product; it is not evidence of free Vibes-account API access and does not provide Vibes video generation.
+
+- [Official Muse Image API guide](https://dev.meta.ai/docs/image-generation)
+- [Official Meta Model API pricing](https://dev.meta.ai/docs/pricing-rate-limits)
+
+Openvibes intentionally does not enable Muse Image as a fallback because the project goal is to use the user's existing free Meta Vibes entitlement without per-generation charges.
+
 ## Capability matrix
 
 | Operation | Consumer UI described | Official unattended free-account API verified | Openvibes state |
