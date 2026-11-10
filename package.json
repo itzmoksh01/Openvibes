@@ -23,7 +23,7 @@
     "test": "node --test dist/tests/*.test.js",
     "dev": "tsx src/index.ts",
     "start": "node dist/src/index.js",
-    "prepublishOnly": "npm run typecheck && npm test"
+    "prepublishOnly": "npm run build && npm test"
   },
   "keywords": [
     "mcp",
