@@ -88,7 +88,7 @@ See [Free local ComfyUI setup](docs/COMFYUI-LOCAL.md).
 
 **Meta status**
 - `openvibes_get_capabilities`
-- `openvibes_cloudflare_generate_text` — hosted Llama text generation using Cloudflare's daily free allocation
+- `openvibes_cloudflare_generate_text` — hosted Google Gemma 4 26B A4B text generation
 - `openvibes_cloudflare_generate_image` — hosted FLUX image generation using Cloudflare's daily free allocation
 - `openvibes_cloudflare_generate_audio` — hosted text-to-speech with Deepgram Aura-1
 - `openvibes_hosted_list_models`
