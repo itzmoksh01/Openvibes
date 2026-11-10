@@ -6,6 +6,7 @@ import { Store } from './database/store.js';
 import { MetaVibesFreeProvider } from './providers/meta-vibes-free.js';
 import { ComfyUiLocalProvider } from './providers/comfyui-local.js';
 import { PollinationsProvider } from './providers/pollinations.js';
+import { CloudflareWorkersAiProvider } from './providers/cloudflare-workers-ai.js';
 import { optimizePrompt } from './services/prompt-engine.js';
 import { diagnose } from './services/diagnostics.js';
 import type { JobKind } from './types.js';
@@ -15,6 +16,7 @@ const store = new Store(config.databasePath);
 const metaVibes = new MetaVibesFreeProvider();
 const comfy = new ComfyUiLocalProvider(process.env.COMFYUI_URL ?? 'http://127.0.0.1:8188', config.outputDir);
 const pollinations = new PollinationsProvider(process.env.OPENVIBES_POLLINATIONS_API_KEY, config.outputDir);
+const cloudflare = new CloudflareWorkersAiProvider(process.env.CLOUDFLARE_ACCOUNT_ID, process.env.CLOUDFLARE_API_TOKEN, config.outputDir);
 const server = new McpServer({ name: 'openvibes', version: '0.3.0' });
 const text = (value: unknown) => ({
   content: [{ type: 'text' as const, text: JSON.stringify(value, null, 2) ?? String(value) }],
@@ -155,6 +157,14 @@ server.registerTool(
   },
   async () => text({
     metaVibes: await metaVibes.getCapabilities(),
+    cloudflareWorkersAi: {
+      provider: cloudflare.id,
+      status: process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_API_TOKEN ? 'CONFIGURED' : 'NEEDS_USER_CREDENTIALS',
+      modalities: ['text', 'image'],
+      defaultTextModel: '@cf/meta/llama-3.1-8b-instruct',
+      defaultImageModel: '@cf/black-forest-labs/flux-1-schnell',
+      billing: 'Cloudflare Workers AI Free plan includes 10,000 Neurons/day; quotas and model availability apply.',
+    },
     hosted: {
       provider: pollinations.id,
       status: process.env.OPENVIBES_POLLINATIONS_API_KEY ? 'CONFIGURED' : 'NEEDS_USER_KEY',
@@ -195,6 +205,50 @@ server.registerTool(
     inputSchema: generationSchema.extend({ source_image: z.string().min(1).max(2000) }),
   },
   async (input) => blockedMeta('image-to-video', input),
+);
+
+server.registerTool(
+  'openvibes_cloudflare_generate_text',
+  {
+    description: 'Generate text online using Cloudflare Workers AI. Default is Meta Llama 3.1 8B Instruct. Requires CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN. Cloudflare Free Workers currently includes 10,000 Neurons/day; model usage consumes this allowance.',
+    inputSchema: z.object({
+      prompt: z.string().min(1).max(20000),
+      model: z.string().min(1).max(200).default('@cf/meta/llama-3.1-8b-instruct'),
+    }),
+  },
+  async ({ prompt, model }) => {
+    try {
+      return text({ success: true, provider: cloudflare.id, model, result: await cloudflare.generateText(prompt, model) });
+    } catch (error) {
+      return text({ success: false, provider: cloudflare.id, error: error instanceof Error ? error.message : String(error) });
+    }
+  },
+);
+server.registerTool(
+  'openvibes_cloudflare_generate_image',
+  {
+    description: 'Generate an image online using Cloudflare-hosted FLUX.1-schnell by default. Saves image locally and records it in SQLite. Requires CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN; uses the Workers AI daily free allowance where eligible.',
+    inputSchema: z.object({
+      prompt: z.string().min(1).max(2048),
+      model: z.string().min(1).max(200).default('@cf/black-forest-labs/flux-1-schnell'),
+      options: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
+    }),
+  },
+  async ({ prompt, model, options }) => {
+    let jobId: string | undefined;
+    try {
+      const job = store.createJob({ kind: 'image', state: 'SUBMITTING', provider: cloudflare.id, prompt, optimizedPrompt: prompt, input: { model, options: options ?? {} } });
+      jobId = job.id;
+      const output = await cloudflare.generateImage(prompt, model, options ?? {});
+      const asset = store.addAsset({ jobId, filename: output.filename, mimeType: output.mimeType, sizeBytes: output.sizeBytes, sha256: output.sha256, path: output.path, metadata: { model, provider: cloudflare.id } });
+      store.updateJob(jobId, 'SAVED', { output, asset, model });
+      return text({ success: true, state: 'SAVED', jobId, provider: cloudflare.id, model, output, asset });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (jobId) store.updateJob(jobId, 'FAILED', { error: message }, 'CLOUDFLARE_GENERATION_FAILED', message);
+      return text({ success: false, state: 'FAILED', ...(jobId ? { jobId } : {}), provider: cloudflare.id, error: message });
+    }
+  },
 );
 
 server.registerTool(
@@ -532,6 +586,7 @@ server.registerTool(
       providers: {
         metaVibes: (await metaVibes.getCapabilities()).status,
         hostedPollinations: { configured: Boolean(process.env.OPENVIBES_POLLINATIONS_API_KEY), provider: pollinations.id, secretValueExposed: false },
+        cloudflareWorkersAi: { configured: Boolean(process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_API_TOKEN), provider: cloudflare.id, secretValueExposed: false },
         comfyUiLocal: comfyUi,
       },
     });
