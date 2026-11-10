@@ -2,7 +2,7 @@
 
 **Open-source MCP server for local AI image/video workflows, with a separately gated Meta Vibes provider.**
 
-> **Current version: 0.3.0 — early development.** Openvibes now includes a local ComfyUI API provider for running user-supplied API-format workflows, monitoring jobs and downloading outputs. Meta Vibes free-plan automation remains blocked because an authorised unattended public interface has not been verified.
+> **Current version: 0.3.0 — early development.** Openvibes includes one-call local text-to-image generation with an installed ComfyUI checkpoint, plus API-workflow execution for video and custom workflows, job monitoring and local output downloads. Meta Vibes free-plan automation remains blocked because an authorised unattended public interface has not been verified.
 
 Openvibes is an independent community project. It is not affiliated with, endorsed by, sponsored by, or officially supported by Meta Platforms, Inc.
 
@@ -13,10 +13,10 @@ Openvibes is an independent community project. It is not affiliated with, endors
 | MCP STDIO server | Implemented; build/protocol tests pending |
 | Local SQLite job history | Implemented |
 | Prompt structuring | Implemented |
-| ComfyUI local server discovery | Implemented |
-| ComfyUI workflow submission | Implemented |
-| ComfyUI job polling | Implemented |
-| ComfyUI image/video output download | Implemented for supported output nodes and formats |
+| ComfyUI local server discovery | Implemented; live test pending |
+| ComfyUI workflow submission | Implemented; live test pending |
+| ComfyUI job polling | Implemented; live test pending |
+| ComfyUI image/video output download | Implemented for supported output nodes; live test pending |
 | ComfyUI cancellation | Implemented for confirmed queued/running jobs |
 | Meta Vibes free image/video generation | Blocked / unverified |
 | Text-to-image | Implemented for installed CheckpointLoaderSimple-compatible checkpoints |
@@ -48,6 +48,8 @@ Set COMFYUI_URL=http://127.0.0.1:8188 and start ComfyUI. For text-to-image, call
 - openvibes_get_capabilities
 - openvibes_generate_image / openvibes_generate_video / openvibes_animate_image — Meta provider, currently blocked
 - openvibes_comfy_server_info
+- openvibes_comfy_list_checkpoints
+- openvibes_comfy_generate_image
 - openvibes_comfy_run_workflow
 - openvibes_comfy_check_job
 - openvibes_comfy_download_outputs
