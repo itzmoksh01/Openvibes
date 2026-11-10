@@ -17,6 +17,7 @@ Openvibes is independent and is not affiliated with, endorsed by, sponsored by, 
 | Antigravity configuration | Automated by `openvibes setup` |
 | Codex configuration | Automated when Codex CLI is installed |
 | Claude Code configuration | Automated when Claude CLI is installed |
+| Zed configuration | Automated when Zed is detected |
 | ComfyUI connection and system check | Implemented |
 | One-call local text-to-image | Implemented; requires a compatible installed checkpoint |
 | Custom ComfyUI image/video workflows | Implemented; requires an API-format workflow |
@@ -37,7 +38,7 @@ openvibes setup --client auto
 openvibes doctor
 ```
 
-The installer backs up existing Muse Code / Antigravity JSON settings before adding the Openvibes MCP entry. Codex and Claude Code are configured through their official CLIs. Existing unrelated MCP entries are preserved. A conflicting entry named `openvibes` is not overwritten.
+The installer backs up existing Muse Code, Antigravity and Zed JSON settings before adding the Openvibes MCP entry. Codex and Claude Code are configured through their official CLIs. Existing unrelated MCP entries are preserved. A conflicting entry named `openvibes` is not overwritten.
 
 For all supported JSON/CLI clients:
 
