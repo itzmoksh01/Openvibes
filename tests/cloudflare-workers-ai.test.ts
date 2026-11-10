@@ -14,7 +14,7 @@ test('Cloudflare text generation uses the configured account, token and model', 
   const originalFetch = globalThis.fetch;
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);
-    assert.equal(url.pathname, '/client/v4/accounts/0123456789abcdef0123456789abcdef/ai/run/@cf/meta/llama-3.1-8b-instruct');
+    assert.equal(url.pathname, '/client/v4/accounts/0123456789abcdef0123456789abcdef/ai/run/@cf/google/gemma-4-26b-a4b-it');
     assert.equal(new Headers(init?.headers).get('authorization'), 'Bearer cf_test_token');
     assert.deepEqual(JSON.parse(String(init?.body)), { prompt: 'hello' });
     return Response.json({ success: true, result: { response: 'Hello there' } });
