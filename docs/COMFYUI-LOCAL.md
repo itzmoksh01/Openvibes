@@ -60,7 +60,7 @@ comfy launch
 
 The install command places the `comfy-mcp` STDIO server on PATH. Add a second MCP server entry to your coding agent with command `comfy-mcp` and no arguments, then restart the agent. The official server can search installed nodes/models/templates, build workflows, generate images and videos from natural language, monitor/cancel jobs, and fetch outputs.
 
-The local Comfy MCP server runs on your own hardware and has no per-generation cloud fee. Partner-hosted models can spend Comfy credits, so avoid partner-generation tools if you require strictly local, no-credit generation. Comfy Cloud MCP is a separate hosted service: it executes on Comfy Cloud GPUs and requires a subscription/credits. Openvibes does not enable or call Comfy Cloud.
+The local Comfy MCP server runs on your own hardware and has no per-generation cloud fee. Partner-hosted models can spend Comfy credits, so avoid partner-generation tools if you require strictly local, no-credit generation. Comfy Cloud MCP is a separate hosted service: new users currently get five free runs to try it, and generation beyond that requires an active Comfy Cloud subscription. Openvibes does not enable or call Comfy Cloud automatically.
 
 **Licensing:** Comfy MCP is AGPL-3.0-or-later (or commercial license); comfy-cli is GPL-3.0. Openvibes does not import or bundle their code. It is an optional, separately installed companion process. Review their licenses before redistribution or commercial deployment.
 
@@ -86,7 +86,7 @@ For any video workflow, load the official template in ComfyUI, install its requi
 
 ## Hardware reality
 
-Image and especially video generation can require substantial GPU memory and disk space. If the computer lacks a suitable GPU, local generation may be slow or infeasible. Openvibes does not secretly route jobs to a paid cloud provider. Check the model's own hardware guide before downloading large weights.
+As a rough guide from Comfy's current MCP documentation, a PC with a dedicated GPU and 24 GB+ VRAM handles most local image/video workflows; 8–24 GB can be workable for images but video may be slow or may not fit; below 8 GB, local video is generally impractical. The same guidance recommends cloud for current large open models on Mac GPUs. These are broad guidelines, not guarantees: exact requirements depend on model, resolution, quantisation, offloading and custom nodes. Openvibes does not secretly route jobs to a paid cloud provider. Check the model's own hardware guide before downloading large weights.
 
 ## API behavior
 
