@@ -163,7 +163,7 @@ server.registerTool(
       modalities: ['text', 'image', 'text-to-speech'],
       defaultTextModel: '@cf/google/gemma-4-26b-a4b-it',
       defaultImageModel: '@cf/black-forest-labs/flux-1-schnell',
-      billing: 'Eligible Workers AI models consume the Free plan 10,000 Neurons/day allowance. Deepgram Aura-1 TTS is priced at $0.015 per 1,000 characters (1,363.64 Neurons); eligible use can consume the 10,000-Neuron daily free allocation. Above that allowance, Workers Paid is required.',
+      billing: 'Free Workers AI allocation: 10,000 Neurons/day. Default Gemma 4: $0.10/M input and $0.30/M output tokens (9,091/27,273 Neurons per M tokens). FLUX.1-schnell: $0.0000528 per 512x512 tile (4.8 Neurons). Aura-1: $0.015/1,000 characters (1,363.64 Neurons). Above the daily free allocation, Workers Paid is required and usage costs $0.011/1,000 Neurons.',
     },
     hosted: {
       provider: pollinations.id,
@@ -210,7 +210,7 @@ server.registerTool(
 server.registerTool(
   'openvibes_cloudflare_generate_text',
   {
-    description: 'Generate text online using Cloudflare Workers AI. Default is Google Gemma 4 26B A4B. Requires CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN. Cloudflare Free Workers currently includes 10,000 Neurons/day; model usage consumes this allowance.',
+    description: 'Generate text online using Cloudflare Workers AI. Default is Google Gemma 4 26B A4B. Requires CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN. Cloudflare Free Workers includes 10,000 Neurons/day. Gemma 4 costs $0.10/M input and $0.30/M output tokens (Neurons); usage above the daily allowance requires Workers Paid.',
     inputSchema: z.object({
       prompt: z.string().min(1).max(20000),
       model: z.string().min(1).max(200).default('@cf/google/gemma-4-26b-a4b-it'),
@@ -254,7 +254,7 @@ server.registerTool(
 server.registerTool(
   'openvibes_cloudflare_generate_image',
   {
-    description: 'Generate an image online using Cloudflare-hosted FLUX.1-schnell by default. Saves image locally and records it in SQLite. Requires CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN; uses the Workers AI daily free allowance where eligible.',
+    description: 'Generate an image online using Cloudflare-hosted FLUX.1-schnell by default. Saves image locally and records it in SQLite. Requires CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN. FLUX.1-schnell costs $0.0000528 per 512x512 tile (4.8 Neurons); eligible usage can consume the 10,000-Neuron daily free allowance. Above that allowance, Workers Paid is required.',
     inputSchema: z.object({
       prompt: z.string().min(1).max(2048),
       model: z.string().min(1).max(200).default('@cf/black-forest-labs/flux-1-schnell'),
