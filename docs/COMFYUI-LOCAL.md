@@ -52,12 +52,17 @@ The node graph above is only a shape illustration, not a valid generation workfl
 
 The official local MCP project already provides higher-level tools for image/video generation, workflow templates, job monitoring and output downloads:
 
-```bash
+~~~bash
 pip install comfy-mcp "comfy-cli>=1.14.0"
 comfy install
-```
+comfy launch
+~~~
 
-Follow the repository's current client setup guide: https://github.com/Comfy-Org/comfy-mcp. This local route is free to run on your own hardware. Do not confuse it with Comfy Cloud, which uses a paid subscription for generation.
+The install command places the `comfy-mcp` STDIO server on PATH. Add a second MCP server entry to your coding agent with command `comfy-mcp` and no arguments, then restart the agent. The official server can search installed nodes/models/templates, build workflows, generate images and videos from natural language, monitor/cancel jobs, and fetch outputs.
+
+The local Comfy MCP server runs on your own hardware and has no per-generation cloud fee. Partner-hosted models can spend Comfy credits, so avoid partner-generation tools if you require strictly local, no-credit generation. Comfy Cloud MCP is a separate hosted service: it executes on Comfy Cloud GPUs and requires a subscription/credits. Openvibes does not enable or call Comfy Cloud.
+
+**Licensing:** Comfy MCP is AGPL-3.0-or-later (or commercial license); comfy-cli is GPL-3.0. Openvibes does not import or bundle their code. It is an optional, separately installed companion process. Review their licenses before redistribution or commercial deployment.
 
 ## Suggested free model starting points
 
