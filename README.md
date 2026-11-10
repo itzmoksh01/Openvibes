@@ -20,7 +20,7 @@ Openvibes is independent and is not affiliated with, endorsed by, sponsored by, 
 | Zed configuration | Automated when Zed is detected (strict JSON settings only) |
 | Cloudflare Workers AI hosted text (Gemma 4 26B A4B) | Implemented; 10,000 Neurons/day free allowance on eligible Free plan |
 | Cloudflare hosted image (FLUX.1-schnell) | Implemented; uses daily Workers AI allowance |
-| Cloudflare hosted text-to-speech (Aura-1) | Implemented; hosted partner model, billed separately at $0.015 per 1,000 characters |
+| Cloudflare hosted text-to-speech (Aura-1) | Implemented; $0.015 per 1,000 characters, charged in Neurons and eligible for the daily free allocation |
 | Pollinations hosted text/image/video/audio | Implemented; requires user-owned key and available Pollen budget |
 | ComfyUI connection and system check | Implemented |
 | One-call local text-to-image | Implemented; requires a compatible installed checkpoint |
