@@ -5,6 +5,7 @@ import { getConfig } from './config.js';
 import { Store } from './database/store.js';
 import { MetaVibesFreeProvider } from './providers/meta-vibes-free.js';
 import { ComfyUiLocalProvider } from './providers/comfyui-local.js';
+import { PollinationsProvider } from './providers/pollinations.js';
 import { optimizePrompt } from './services/prompt-engine.js';
 import { diagnose } from './services/diagnostics.js';
 import type { JobKind } from './types.js';
@@ -13,6 +14,7 @@ const config = getConfig();
 const store = new Store(config.databasePath);
 const metaVibes = new MetaVibesFreeProvider();
 const comfy = new ComfyUiLocalProvider(process.env.COMFYUI_URL ?? 'http://127.0.0.1:8188', config.outputDir);
+const pollinations = new PollinationsProvider(process.env.OPENVIBES_POLLINATIONS_API_KEY, config.outputDir);
 const server = new McpServer({ name: 'openvibes', version: '0.3.0' });
 const text = (value: unknown) => ({
   content: [{ type: 'text' as const, text: JSON.stringify(value, null, 2) ?? String(value) }],
@@ -153,6 +155,13 @@ server.registerTool(
   },
   async () => text({
     metaVibes: await metaVibes.getCapabilities(),
+    hosted: {
+      provider: pollinations.id,
+      status: process.env.OPENVIBES_POLLINATIONS_API_KEY ? 'CONFIGURED' : 'NEEDS_USER_KEY',
+      modalities: ['text', 'image', 'video', 'audio'],
+      models: 'Discovered live from the provider catalog; pricing and access vary by model and user account.',
+      billing: 'User-authorized Pollinations account and Pollen budget; no free/unlimited usage is promised.',
+    },
     comfyUiLocal: {
       provider: comfy.id,
       status: 'CONDITIONAL',
@@ -186,6 +195,77 @@ server.registerTool(
     inputSchema: generationSchema.extend({ source_image: z.string().min(1).max(2000) }),
   },
   async (input) => blockedMeta('image-to-video', input),
+);
+
+server.registerTool(
+  'openvibes_hosted_list_models',
+  {
+    description: 'Discover currently available hosted text, image, video or audio models and their published capabilities/pricing. Public model catalog; generation still requires the user-owned Pollinations API key and account budget.',
+    inputSchema: z.object({ category: z.enum(['text', 'image', 'video', 'audio']).optional() }),
+  },
+  async ({ category }) => {
+    try {
+      return text({ success: true, provider: pollinations.id, category: category ?? 'all', models: await pollinations.listModels(category) });
+    } catch (error) {
+      return text({ success: false, error: error instanceof Error ? error.message : String(error) });
+    }
+  },
+);
+server.registerTool(
+  'openvibes_hosted_generate_text',
+  {
+    description: 'Generate text using a currently available hosted model via Pollinations. Model IDs should come from openvibes_hosted_list_models. Requires OPENVIBES_POLLINATIONS_API_KEY and user-owned account budget.',
+    inputSchema: z.object({ prompt: z.string().min(1).max(20000), model: z.string().min(1).max(200) }),
+  },
+  async ({ prompt, model }) => {
+    try {
+      return text({ success: true, provider: pollinations.id, model, result: await pollinations.generateText(prompt, model) });
+    } catch (error) {
+      return text({ success: false, provider: pollinations.id, error: error instanceof Error ? error.message : String(error) });
+    }
+  },
+);
+server.registerTool(
+  'openvibes_hosted_generate_media',
+  {
+    description: 'Generate and download an image, video or speech/audio file using a hosted Pollinations model. The model must be selected from the live catalog. Media is saved locally and registered in Openvibes. Requires a user-owned Pollinations key and available Pollen budget; model costs vary.',
+    inputSchema: z.object({
+      kind: z.enum(['image', 'video', 'audio']),
+      prompt: z.string().min(1).max(10000),
+      model: z.string().min(1).max(200),
+      options: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
+    }),
+  },
+  async ({ kind, prompt, model, options }) => {
+    let jobId: string | undefined;
+    try {
+      const job = store.createJob({
+        kind,
+        state: 'SUBMITTING',
+        provider: pollinations.id,
+        prompt,
+        optimizedPrompt: prompt,
+        input: { model, options: options ?? {} },
+      });
+      jobId = job.id;
+      const output = await pollinations.generateMedia(kind, prompt, model, options ?? {});
+      const asset = store.addAsset({
+        jobId,
+        filename: output.filename,
+        mimeType: output.mimeType,
+        sizeBytes: output.sizeBytes,
+        sha256: output.sha256,
+        path: output.path,
+        metadata: { model, provider: pollinations.id, providerJobId: output.providerJobId },
+      });
+      store.updateJob(jobId, 'SAVED', { output, asset, model });
+      return text({ success: true, state: 'SAVED', jobId, provider: pollinations.id, model, output, asset });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (jobId) store.updateJob(jobId, 'FAILED', { error: message }, 'POLLINATIONS_GENERATION_FAILED', message);
+      return text({ success: false, state: 'FAILED', ...(jobId ? { jobId } : {}), provider: pollinations.id, error: message });
+    }
+  },
 );
 
 server.registerTool(
