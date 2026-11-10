@@ -160,7 +160,7 @@ server.registerTool(
     cloudflareWorkersAi: {
       provider: cloudflare.id,
       status: process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_API_TOKEN ? 'CONFIGURED' : 'NEEDS_USER_CREDENTIALS',
-      modalities: ['text', 'image'],
+      modalities: ['text', 'image', 'text-to-speech'],
       defaultTextModel: '@cf/meta/llama-3.1-8b-instruct',
       defaultImageModel: '@cf/black-forest-labs/flux-1-schnell',
       billing: 'Cloudflare Workers AI Free plan includes 10,000 Neurons/day; quotas and model availability apply.',
@@ -224,6 +224,33 @@ server.registerTool(
     }
   },
 );
+server.registerTool(
+  'openvibes_cloudflare_generate_audio',
+  {
+    description: 'Generate speech online using Cloudflare Deepgram Aura-1 TTS by default. Saves MP3/audio output locally. Requires CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN; uses Workers AI daily allowance where eligible. This is text-to-speech, not music generation.',
+    inputSchema: z.object({
+      text: z.string().min(1).max(10000),
+      model: z.string().min(1).max(200).default('@cf/deepgram/aura-1'),
+      options: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
+    }),
+  },
+  async ({ text: speechText, model, options }) => {
+    let jobId: string | undefined;
+    try {
+      const job = store.createJob({ kind: 'audio', state: 'SUBMITTING', provider: cloudflare.id, prompt: speechText, optimizedPrompt: speechText, input: { model, options: options ?? {} } });
+      jobId = job.id;
+      const output = await cloudflare.generateAudio(speechText, model, options ?? {});
+      const asset = store.addAsset({ jobId, filename: output.filename, mimeType: output.mimeType, sizeBytes: output.sizeBytes, sha256: output.sha256, path: output.path, metadata: { model, provider: cloudflare.id } });
+      store.updateJob(jobId, 'SAVED', { output, asset, model });
+      return text({ success: true, state: 'SAVED', jobId, provider: cloudflare.id, model, output, asset });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (jobId) store.updateJob(jobId, 'FAILED', { error: message }, 'CLOUDFLARE_TTS_FAILED', message);
+      return text({ success: false, state: 'FAILED', ...(jobId ? { jobId } : {}), provider: cloudflare.id, error: message });
+    }
+  },
+);
+
 server.registerTool(
   'openvibes_cloudflare_generate_image',
   {
