@@ -159,7 +159,7 @@ server.registerTool(
     metaVibes: await metaVibes.getCapabilities(),
     cloudflareWorkersAi: {
       provider: cloudflare.id,
-      status: process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_API_TOKEN ? 'CONFIGURED' : 'NEEDS_USER_CREDENTIALS',
+      status: /^[a-f0-9]{32}$/i.test(process.env.CLOUDFLARE_ACCOUNT_ID ?? '') && Boolean(process.env.CLOUDFLARE_API_TOKEN?.trim()) ? 'CONFIGURED_NOT_LIVE_TESTED' : 'NEEDS_USER_CREDENTIALS',
       modalities: ['text', 'image', 'text-to-speech'],
       defaultTextModel: '@cf/google/gemma-4-26b-a4b-it',
       defaultImageModel: '@cf/black-forest-labs/flux-1-schnell',
@@ -167,7 +167,7 @@ server.registerTool(
     },
     hosted: {
       provider: pollinations.id,
-      status: process.env.OPENVIBES_POLLINATIONS_API_KEY ? 'CONFIGURED' : 'NEEDS_USER_KEY',
+      status: process.env.OPENVIBES_POLLINATIONS_API_KEY?.trim() ? 'CONFIGURED_NOT_LIVE_TESTED' : 'NEEDS_USER_KEY',
       modalities: ['text', 'image', 'video', 'audio'],
       models: 'Discovered live from the provider catalog; pricing and access vary by model and user account.',
       billing: 'User-authorized Pollinations account and Pollen budget; no free/unlimited usage is promised.',
