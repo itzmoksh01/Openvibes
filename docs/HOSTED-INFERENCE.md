@@ -2,11 +2,31 @@
 
 Openvibes supports online inference through Pollinations' hosted generation API. Model weights run on provider infrastructure; end users do not need a local GPU, ComfyUI, Python environment or downloaded checkpoints.
 
-## Best no-local-install starting point: Cloudflare Workers AI\n\nCloudflare Workers AI is the first option to try when you want a real hosted free allowance. Its current Free Workers plan includes 10,000 Neurons per day, reset at 00:00 UTC. Openvibes includes online tools for Meta Llama 3.1 8B text generation, FLUX.1-schnell image generation, and Deepgram Aura-1 text-to-speech. These are hosted model inference calls; no model files or local GPU are required. The free allowance is shared across Workers AI requests and is not unlimited.\n\n1. Create a Cloudflare account and open Workers AI → Use REST API.\n2. Copy the Account ID and create a Workers AI API token with Workers AI Read and Edit permissions.\n3. Set `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` in the environment inherited by your MCP host.\n4. Restart the coding agent and call `openvibes_cloudflare_generate_text`, `openvibes_cloudflare_generate_image`, or `openvibes_cloudflare_generate_audio`.\n\nDefault models: `@cf/meta/llama-3.1-8b-instruct`, `@cf/black-forest-labs/flux-1-schnell`, and `@cf/deepgram/aura-1` for TTS. FLUX.1-schnell is a 12B hosted text-to-image model; its Cloudflare model page documents the REST API and base64 image response.\n\nCloudflare Aura-1 TTS is a hosted Deepgram service model, not an open-weight model. It is exposed because it is documented and can consume the Workers AI daily allowance; model pricing is published per 1,000 characters. For video generation, use Pollinations' live video catalogue where account balance and model availability permit. Open-weight hosted video inference with a dependable free public quota is not currently verified.\n\n## Set up Pollinations for video/audio and wider model choice
+## Best no-local-install starting point: Cloudflare Workers AI
+
+Cloudflare Workers AI is the first option to try when you want a real hosted free allowance. Its current Free Workers plan includes 10,000 Neurons per day, reset at 00:00 UTC. Openvibes includes online tools for Meta Llama 3.1 8B text generation, FLUX.1-schnell image generation, and Deepgram Aura-1 text-to-speech. These are hosted model inference calls; no model files or local GPU are required. The free allowance is shared across Workers AI requests and is not unlimited.
+
+1. Create a Cloudflare account and open Workers AI → Use REST API.
+2. Copy the Account ID and create a Workers AI API token with Workers AI Read and Edit permissions.
+3. Set `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` in the environment inherited by your MCP host.
+4. Restart the coding agent and call `openvibes_cloudflare_generate_text`, `openvibes_cloudflare_generate_image`, or `openvibes_cloudflare_generate_audio`.
+
+Default models: `@cf/meta/llama-3.1-8b-instruct`, `@cf/black-forest-labs/flux-1-schnell`, and `@cf/deepgram/aura-1` for TTS. FLUX.1-schnell is a 12B hosted text-to-image model; its Cloudflare model page documents the REST API and base64 image response.
+
+Cloudflare Aura-1 TTS is a hosted Deepgram service model, not an open-weight model. It is exposed because it is documented and can consume the Workers AI daily allowance; model pricing is published per 1,000 characters. For video generation, use Pollinations' live video catalogue where account balance and model availability permit. Open-weight hosted video inference with a dependable free public quota is not currently verified.
+
+## Set up Pollinations for video/audio and wider model choice
 
 1. Create your own key at https://enter.pollinations.ai/keys.
 2. Give it only the model categories you intend to use and set a conservative spending budget/expiry in the provider dashboard.
-3. Set `OPENVIBES_POLLINATIONS_API_KEY` in the environment inherited by Muse Code, Claude Code, Codex, Antigravity or Zed **before launching the MCP host**. Examples:\n\n   macOS/Linux (from a terminal): `export OPENVIBES_POLLINATIONS_API_KEY='sk_…'`\n\n   Windows PowerShell (current session): `$env:OPENVIBES_POLLINATIONS_API_KEY='sk_…'`\n\n   For desktop-launched clients, configure the variable in your operating system's user environment and fully restart the client.\n4. Restart the coding agent and call `openvibes_hosted_list_models`.
+3. Set `OPENVIBES_POLLINATIONS_API_KEY` in the environment inherited by Muse Code, Claude Code, Codex, Antigravity or Zed **before launching the MCP host**. Examples:
+
+   macOS/Linux (from a terminal): `export OPENVIBES_POLLINATIONS_API_KEY='sk_…'`
+
+   Windows PowerShell (current session): `$env:OPENVIBES_POLLINATIONS_API_KEY='sk_…'`
+
+   For desktop-launched clients, configure the variable in your operating system's user environment and fully restart the client.
+4. Restart the coding agent and call `openvibes_hosted_list_models`.
 
 Never paste a secret key into a chat prompt, source file, issue, commit, or publicly shared MCP configuration. The key is not copied into Openvibes client setup files. Environment variables are the current credential mechanism; a future release may add an OS-keychain-backed OAuth flow after registering an official Pollinations Connect application.
 
@@ -33,11 +53,17 @@ The provider may return `401` for an invalid/missing key, `402` when the account
 
 ## Online free-tier alternatives
 
-Cloudflare Workers AI currently advertises 10,000 Neurons per day on its Free Workers plan, with limits resetting at 00:00 UTC. It hosts open-weight text, image, text-to-speech and speech-to-text models, but its catalogue does not provide a general first-party text-to-video model. Account ID and API token are required. This is a daily allowance, not unlimited free inference. Cloudflare is documented as a future provider adapter; the current hosted MCP implementation uses Pollinations' unified API for all four requested modalities.
+Cloudflare Workers AI currently advertises 10,000 Neurons per day on its Free Workers plan, with limits resetting at 00:00 UTC. It hosts open-weight text, image, text-to-speech and speech-to-text models, but its catalogue does not provide a general first-party text-to-video model. Account ID and API token are required. This is a daily allowance, not unlimited free inference. Openvibes currently implements Cloudflare hosted text, image and text-to-speech tools. Pollinations provides the optional wider model catalogue, including video/audio models subject to live availability and account budget.
 
 Hugging Face Inference Providers currently gives free accounts $0.10/month in credits, subject to change. That is useful for testing but not a dependable free video-generation backend.
 
-## Official references\n\n- [Cloudflare Workers AI free daily allocation](https://developers.cloudflare.com/workers-ai/platform/pricing/)\n- [Cloudflare Workers AI REST API setup](https://developers.cloudflare.com/workers-ai/get-started/rest-api/)\n- [Cloudflare FLUX.1-schnell model and REST API](https://developers.cloudflare.com/workers-ai/models/flux-1-schnell/)\n- [Cloudflare Aura-1 text-to-speech model](https://developers.cloudflare.com/workers-ai/models/aura-1/)\n- [Cloudflare Llama model catalogue](https://developers.cloudflare.com/workers-ai/models/)
+## Official references
+
+- [Cloudflare Workers AI free daily allocation](https://developers.cloudflare.com/workers-ai/platform/pricing/)
+- [Cloudflare Workers AI REST API setup](https://developers.cloudflare.com/workers-ai/get-started/rest-api/)
+- [Cloudflare FLUX.1-schnell model and REST API](https://developers.cloudflare.com/workers-ai/models/flux-1-schnell/)
+- [Cloudflare Aura-1 text-to-speech model](https://developers.cloudflare.com/workers-ai/models/aura-1/)
+- [Cloudflare Llama model catalogue](https://developers.cloudflare.com/workers-ai/models/)
 
 - [Pollinations open-source repository and unified API](https://github.com/pollinations/pollinations)
 - [Pollinations API quick start](https://github.com/pollinations/pollinations/blob/main/gen.pollinations.ai/src/docs/quick-start.md)
