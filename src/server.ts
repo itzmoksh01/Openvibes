@@ -163,7 +163,7 @@ server.registerTool(
       modalities: ['text', 'image', 'text-to-speech'],
       defaultTextModel: '@cf/google/gemma-4-26b-a4b-it',
       defaultImageModel: '@cf/black-forest-labs/flux-1-schnell',
-      billing: 'Eligible Workers AI models consume the Free plan 10,000 Neurons/day allowance. Deepgram Aura-1 TTS is separately priced at $0.015 per 1,000 characters; verify current pricing before use.',
+      billing: 'Eligible Workers AI models consume the Free plan 10,000 Neurons/day allowance. Deepgram Aura-1 TTS is priced at $0.015 per 1,000 characters (1,363.64 Neurons); eligible use can consume the 10,000-Neuron daily free allocation. Above that allowance, Workers Paid is required.',
     },
     hosted: {
       provider: pollinations.id,
@@ -227,7 +227,7 @@ server.registerTool(
 server.registerTool(
   'openvibes_cloudflare_generate_audio',
   {
-    description: 'Generate speech online using Cloudflare Deepgram Aura-1 TTS by default. Saves MP3/audio output locally. Requires CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN. Deepgram Aura-1 is separately priced at $0.015 per 1,000 characters; it is not promised to be covered by the free Neurons allowance. This is text-to-speech, not music generation.',
+    description: 'Generate speech online using Cloudflare Deepgram Aura-1 TTS by default. Saves MP3/audio output locally. Requires CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN. Deepgram Aura-1 is priced at $0.015 per 1,000 characters (1,363.64 Neurons); eligible use can consume the daily 10,000-Neuron free allocation. Above that allowance, Workers Paid is required. This is text-to-speech, not music generation.',
     inputSchema: z.object({
       text: z.string().min(1).max(10000),
       model: z.string().min(1).max(200).default('@cf/deepgram/aura-1'),
