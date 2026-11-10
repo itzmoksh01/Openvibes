@@ -10,7 +10,7 @@
 - Improve provider readiness diagnostics without exposing credential values.
 - Add real-process MCP STDIO smoke coverage, SQLite persistence tests and bounded-response tests.
 - Expand cross-platform CI, CodeQL, Dependabot, npm dependency auditing and provenance-based publishing gates.
-- Keep the release marked early-development until cross-platform CI, live provider generation and advertised MCP-host verification are complete.
+- Keep the release marked early-development until live provider generation, advertised MCP-host verification and npm Trusted Publishing setup are complete.
 
 ## 0.3.0 - 2026-11-10
 
