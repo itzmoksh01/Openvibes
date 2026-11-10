@@ -44,3 +44,24 @@ test('Cloudflare FLUX base64 image is saved and hashed', async () => {
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test('Cloudflare Aura TTS saves audio output', async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'openvibes-cf-audio-'));
+  const originalFetch = globalThis.fetch;
+  const bytes = Buffer.from([2, 4, 6, 8]);
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);
+    assert.equal(url.pathname, '/client/v4/accounts/0123456789abcdef0123456789abcdef/ai/run/@cf/deepgram/aura-1');
+    assert.deepEqual(JSON.parse(String(init?.body)), { text: 'Hello world' });
+    return new Response(bytes, { status: 200, headers: { 'content-type': 'audio/mpeg' } });
+  }) as typeof fetch;
+  try {
+    const provider = new CloudflareWorkersAiProvider('0123456789abcdef0123456789abcdef', 'cf_test_token', directory);
+    const output = await provider.generateAudio('Hello world');
+    assert.equal(output.mimeType, 'audio/mpeg');
+    assert.deepEqual(await readFile(output.path), bytes);
+  } finally {
+    globalThis.fetch = originalFetch;
+    await rm(directory, { recursive: true, force: true });
+  }
+});
