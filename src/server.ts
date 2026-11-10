@@ -163,7 +163,7 @@ server.registerTool(
       modalities: ['text', 'image', 'text-to-speech'],
       defaultTextModel: '@cf/meta/llama-3.1-8b-instruct',
       defaultImageModel: '@cf/black-forest-labs/flux-1-schnell',
-      billing: 'Cloudflare Workers AI Free plan includes 10,000 Neurons/day; quotas and model availability apply.',
+      billing: 'Eligible Workers AI models consume the Free plan 10,000 Neurons/day allowance. Deepgram Aura-1 TTS is separately priced at $0.015 per 1,000 characters; verify current pricing before use.',
     },
     hosted: {
       provider: pollinations.id,
@@ -227,7 +227,7 @@ server.registerTool(
 server.registerTool(
   'openvibes_cloudflare_generate_audio',
   {
-    description: 'Generate speech online using Cloudflare Deepgram Aura-1 TTS by default. Saves MP3/audio output locally. Requires CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN; uses Workers AI daily allowance where eligible. This is text-to-speech, not music generation.',
+    description: 'Generate speech online using Cloudflare Deepgram Aura-1 TTS by default. Saves MP3/audio output locally. Requires CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN. Deepgram Aura-1 is separately priced at $0.015 per 1,000 characters; it is not promised to be covered by the free Neurons allowance. This is text-to-speech, not music generation.',
     inputSchema: z.object({
       text: z.string().min(1).max(10000),
       model: z.string().min(1).max(200).default('@cf/deepgram/aura-1'),
@@ -608,13 +608,27 @@ server.registerTool(
         error: error instanceof Error ? error.message : String(error),
       };
     }
+    const local = diagnose(config);
     return text({
-      ...diagnose(config),
+      ...local,
       providers: {
-        metaVibes: (await metaVibes.getCapabilities()).status,
-        hostedPollinations: { configured: Boolean(process.env.OPENVIBES_POLLINATIONS_API_KEY), provider: pollinations.id, secretValueExposed: false },
-        cloudflareWorkersAi: { configured: Boolean(process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_API_TOKEN), provider: cloudflare.id, secretValueExposed: false },
-        comfyUiLocal: comfyUi,
+        ...local.providers,
+        metaVibes: {
+          ...(await metaVibes.getCapabilities()),
+          status: 'BLOCKED',
+        },
+        pollinations: {
+          ...local.providers.pollinations,
+          provider: pollinations.id,
+        },
+        cloudflareWorkersAi: {
+          ...local.providers.cloudflareWorkersAi,
+          provider: cloudflare.id,
+        },
+        comfyUiLocal: {
+          ...local.providers.comfyUiLocal,
+          ...comfyUi,
+        },
       },
     });
   },
