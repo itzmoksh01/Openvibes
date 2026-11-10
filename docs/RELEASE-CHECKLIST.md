@@ -15,7 +15,7 @@ A green unit-test suite is necessary but is not sufficient for a production rele
 
 - [ ] Minimum supported Node.js version passes type-check, build and tests.
 - [ ] Current Node.js LTS passes type-check, build and tests.
-- [ ] Windows, macOS and Linux pass the supported CI matrix.
+- [ ] Windows, macOS and Linux pass the supported CI matrix; retain the workflow URL and commit SHA as release evidence.
 - [ ] MCP STDIO smoke test completes initialize and tools/list without stdout contamination.
 - [ ] SQLite persistence, migration/restart behavior, job state transitions and asset path validation pass.
 - [ ] Failure tests cover invalid credentials, rate limits, timeouts, malformed provider responses, cancellation and partial downloads.
