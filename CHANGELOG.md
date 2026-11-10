@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- Replace the deprecated Cloudflare Llama 3.1 default with the currently documented Google Gemma 4 26B A4B model.
+- Harden Cloudflare and Pollinations provider inputs, asynchronous job identifiers, JSON parsing and media download limits.
+- Detect Cloudflare-generated image formats and save files with matching extensions and MIME types.
+- Harden local ComfyUI response handling and workflow size limits.
+- Improve SQLite file permissions, asset metadata validation and missing-job detection.
+- Improve provider readiness diagnostics without exposing credential values.
+- Add real-process MCP STDIO smoke coverage, SQLite persistence tests and bounded-response tests.
+- Expand cross-platform CI, CodeQL, Dependabot, npm dependency auditing and provenance-based publishing gates.
+- Keep the release marked early-development until a committed dependency lockfile, passing CI and live provider/host verification are available.
+
 ## 0.3.0 - 2026-11-10
 
 - Added one-call local text-to-image generation using standard ComfyUI checkpoint nodes.
