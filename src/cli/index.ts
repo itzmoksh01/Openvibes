@@ -6,7 +6,7 @@ import { getConfig } from '../config.js';
 import { Store } from '../database/store.js';
 import { diagnose } from '../services/diagnostics.js';
 
-const usage = "Openvibes CLI\n\nCommands:\n  openvibes setup [--client auto|all|muse|antigravity|codex|claude]\n  openvibes status\n  openvibes doctor\n  openvibes jobs\n  openvibes assets\n  openvibes mcp\n  openvibes auth login\n  openvibes uninstall\n\nEnvironment:\n  COMFYUI_URL             Local ComfyUI base URL\n  OPENVIBES_DATA_DIR      Persistent jobs/assets database directory\n  OPENVIBES_OUTPUT_DIR    Generated media directory\n";
+const usage = "Openvibes CLI\n\nCommands:\n  openvibes setup [--client auto|all|muse|antigravity|codex|claude|zed]\n  openvibes status\n  openvibes doctor\n  openvibes jobs\n  openvibes assets\n  openvibes mcp\n  openvibes auth login\n  openvibes uninstall\n\nEnvironment:\n  COMFYUI_URL             Local ComfyUI base URL\n  OPENVIBES_DATA_DIR      Persistent jobs/assets database directory\n  OPENVIBES_OUTPUT_DIR    Generated media directory\n";
 
 type JsonObject = Record<string, unknown>;
 
@@ -19,22 +19,38 @@ function commandAvailable(command: string): boolean {
   return !result.error && result.status === 0;
 }
 
+function zedSettingsPath(home: string): string {
+  if (process.platform === 'darwin') {
+    return path.join(home, 'Library', 'Application Support', 'Zed', 'settings.json');
+  }
+  if (process.platform === 'win32') {
+    return path.join(process.env.APPDATA ?? path.join(home, 'AppData', 'Roaming'), 'Zed', 'settings.json');
+  }
+  return path.join(process.env.XDG_CONFIG_HOME ?? path.join(home, '.config'), 'zed', 'settings.json');
+}
+
 function detectClients() {
   const home = os.homedir();
   const museConfig = path.join(process.env.XDG_CONFIG_HOME ?? path.join(home, '.config'), 'muse', 'settings.json');
   const antigravityConfig = path.join(home, '.gemini', 'config', 'mcp_config.json');
   const codexConfig = path.join(home, '.codex', 'config.toml');
   const claudeConfig = path.join(home, '.claude.json');
+  const zedConfig = zedSettingsPath(home);
   return [
     { name: 'Muse Code', command: 'muse', installed: commandAvailable('muse'), config: museConfig, configured: fs.existsSync(museConfig) },
     { name: 'Antigravity', command: 'agy', installed: commandAvailable('agy'), config: antigravityConfig, configured: fs.existsSync(antigravityConfig) },
     { name: 'Codex', command: 'codex', installed: commandAvailable('codex'), config: codexConfig, configured: fs.existsSync(codexConfig) },
     { name: 'Claude Code', command: 'claude', installed: commandAvailable('claude'), config: claudeConfig, configured: fs.existsSync(claudeConfig) },
-    { name: 'Zed', command: 'zed', installed: commandAvailable('zed'), config: path.join(home, '.config', 'zed', 'settings.json'), configured: fs.existsSync(path.join(home, '.config', 'zed', 'settings.json')) },
+    { name: 'Zed', command: 'zed', installed: commandAvailable('zed'), config: zedConfig, configured: fs.existsSync(zedConfig) },
   ];
 }
 
-function writeJsonConfig(filePath: string, serverConfig: JsonObject, museSchema = false) {
+function writeJsonConfig(
+  filePath: string,
+  serverConfig: JsonObject,
+  options: { museSchema?: boolean; rootKey?: string } = {},
+) {
+  const rootKey = options.rootKey ?? 'mcpServers';
   fs.mkdirSync(path.dirname(filePath), { recursive: true, mode: 0o700 });
   let config: JsonObject = {};
   const existed = fs.existsSync(filePath);
@@ -48,14 +64,14 @@ function writeJsonConfig(filePath: string, serverConfig: JsonObject, museSchema 
     if (!isObject(parsed)) throw new Error('CONFIG_NOT_OBJECT: ' + filePath);
     config = parsed;
   }
-  if (museSchema) {
+  if (options.museSchema) {
     if (config.schema_version !== undefined && config.schema_version !== 1) {
       throw new Error('MUSE_SCHEMA_VERSION_UNSUPPORTED: ' + String(config.schema_version));
     }
     config.schema_version = 1;
   }
-  const servers = config.mcpServers === undefined ? {} : config.mcpServers;
-  if (!isObject(servers)) throw new Error('MCP_SERVERS_NOT_OBJECT: ' + filePath);
+  const servers = config[rootKey] === undefined ? {} : config[rootKey];
+  if (!isObject(servers)) throw new Error(rootKey.toUpperCase() + '_NOT_OBJECT: ' + filePath);
 
   const previous = servers.openvibes;
   let alreadyConfigured = false;
@@ -70,7 +86,7 @@ function writeJsonConfig(filePath: string, serverConfig: JsonObject, museSchema 
   } else {
     servers.openvibes = serverConfig;
   }
-  config.mcpServers = servers;
+  config[rootKey] = servers;
   if (alreadyConfigured) return { path: filePath, alreadyConfigured: true };
 
   let backup: string | undefined;
@@ -97,7 +113,7 @@ function installMuse(config: ReturnType<typeof getConfig>, entrypoint: string) {
   const result = writeJsonConfig(file, {
     type: 'stdio', command: process.execPath, args: [entrypoint, 'mcp'],
     env: clientEnvironment(config), required: false, tool_timeout_sec: 600,
-  }, true);
+  }, { museSchema: true });
   return { client: 'Muse Code', ...result };
 }
 
@@ -154,10 +170,21 @@ function installClaude(config: ReturnType<typeof getConfig>, entrypoint: string)
   return { client: 'Claude Code', alreadyConfigured: false };
 }
 
+function installZed(config: ReturnType<typeof getConfig>, entrypoint: string) {
+  const file = zedSettingsPath(os.homedir());
+  const result = writeJsonConfig(file, {
+    command: process.execPath,
+    args: [entrypoint, 'mcp'],
+    env: clientEnvironment(config),
+    timeout: 600,
+  }, { rootKey: 'context_servers' });
+  return { client: 'Zed', ...result };
+}
+
 function setupClients(args: string[], config: ReturnType<typeof getConfig>) {
   const clientFlag = args.indexOf('--client');
   const requested = clientFlag >= 0 ? (args[clientFlag + 1] ?? 'auto') : 'auto';
-  const valid = ['auto', 'all', 'muse', 'antigravity', 'codex', 'claude'];
+  const valid = ['auto', 'all', 'muse', 'antigravity', 'codex', 'claude', 'zed'];
   if (!valid.includes(requested)) throw new Error('UNKNOWN_CLIENT: ' + requested + '. Choose: ' + valid.join(', ') + '.');
 
   const entrypoint = path.resolve(process.argv[1] ?? path.join(process.cwd(), 'dist', 'src', 'index.js'));
@@ -166,14 +193,16 @@ function setupClients(args: string[], config: ReturnType<typeof getConfig>) {
   const antigravity = clients.find((client) => client.name === 'Antigravity');
   const codex = clients.find((client) => client.name === 'Codex');
   const claude = clients.find((client) => client.name === 'Claude Code');
+  const zed = clients.find((client) => client.name === 'Zed');
   const selected = requested === 'all'
-    ? ['muse', 'antigravity', 'codex', 'claude']
+    ? ['muse', 'antigravity', 'codex', 'claude', 'zed']
     : requested === 'auto'
       ? [
           ...(muse?.installed || muse?.configured ? ['muse'] : []),
           ...(antigravity?.installed || antigravity?.configured ? ['antigravity'] : []),
           ...(codex?.installed ? ['codex'] : []),
           ...(claude?.installed ? ['claude'] : []),
+          ...(zed?.installed || zed?.configured ? ['zed'] : []),
         ]
       : [requested];
 
@@ -187,6 +216,7 @@ function setupClients(args: string[], config: ReturnType<typeof getConfig>) {
       else if (client === 'antigravity') configured.push(installAntigravity(config, entrypoint));
       else if (client === 'codex') configured.push(installCodex(config, entrypoint));
       else if (client === 'claude') configured.push(installClaude(config, entrypoint));
+      else if (client === 'zed') configured.push(installZed(config, entrypoint));
     } catch (error) {
       errors.push({ client, error: error instanceof Error ? error.message : String(error) });
     }
@@ -194,7 +224,7 @@ function setupClients(args: string[], config: ReturnType<typeof getConfig>) {
   return {
     requested, configured, errors, detectedClients: clients,
     ...(selected.length === 0 ? {
-      note: 'No supported MCP client was detected. Install Muse Code, Antigravity, Codex or Claude Code, then run openvibes setup --client auto, or follow docs/CLIENT-SETUP.md.',
+      note: 'No supported MCP client was detected. Install Muse Code, Antigravity, Codex, Claude Code or Zed, then run openvibes setup --client auto, or follow docs/CLIENT-SETUP.md.',
     } : {}),
   };
 }
