@@ -2,10 +2,11 @@
   "name": "openvibes-mcp",
   "version": "0.3.0",
   "private": false,
-  "description": "Open-source MCP server for local ComfyUI image and video workflows, with an evidence-gated Meta Vibes provider.",
+  "description": "Open-source MCP server for Meta Vibes feasibility and local ComfyUI image/video generation.",
   "type": "module",
   "engines": {
-    "node": ">=22.13.0"
+    "node": ">=22.13.0",
+    "npm": ">=10.0.0"
   },
   "bin": {
     "openvibes": "./dist/src/index.js"
@@ -20,9 +21,10 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "npm run build && node --test dist/tests/*.test.js",
+    "test": "node --test dist/tests/*.test.js",
     "dev": "tsx src/index.ts",
     "start": "node dist/src/index.js",
+    "prepare": "npm run build",
     "prepublishOnly": "npm run build && npm test"
   },
   "keywords": [
@@ -31,12 +33,17 @@
     "vibes",
     "ai-video",
     "ai-image",
-    "coding-agents",
     "comfyui",
-    "local-ai",
-    "open-source-video-generation",
-    "image-generation"
+    "coding-agents"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/itzmoksh01/Openvibes.git"
+  },
+  "homepage": "https://github.com/itzmoksh01/Openvibes",
+  "bugs": {
+    "url": "https://github.com/itzmoksh01/Openvibes/issues"
+  },
   "license": "Apache-2.0",
   "dependencies": {
     "@modelcontextprotocol/server": "^2.4.0",
