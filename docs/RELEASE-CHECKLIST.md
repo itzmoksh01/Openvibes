@@ -7,16 +7,16 @@ A green unit-test suite is necessary but is not sufficient for a production rele
 - [x] Commit and review `package-lock.json`; CI and release workflows use `npm ci`.
 - [x] Pin direct dependencies and configure Dependabot for npm and GitHub Actions updates.
 - [x] The latest CI run passed `npm audit --audit-level=high` on the tested Linux matrix jobs; rerun on every release commit.
-- [ ] CodeQL analysis and Dependabot are configured; confirm the latest CodeQL result and resolve actionable findings.
+- [ ] CodeQL analysis is configured and running; review the final result and resolve actionable findings. Dependabot update schedules are configured.
 - [x] CI reviews npm package contents with `npm pack --dry-run`.
-- [ ] Confirm LICENSE, NOTICE, README, docs and runtime files are included.
+- [x] Confirm LICENSE, NOTICE, README, docs and runtime files are included in the package allowlist and pack smoke check.
 
 ## Automated verification
 
-- [ ] Minimum supported Node.js version passes type-check, build and tests.
-- [ ] Current Node.js LTS passes type-check, build and tests.
-- [ ] Windows, macOS and Linux pass the supported CI matrix.
-- [ ] MCP STDIO smoke test completes initialize and tools/list without stdout contamination.
+- [x] Minimum supported Node.js 22.13.0 passes type-check, build and tests on Linux, Windows and macOS.
+- [x] Node.js 24 passes type-check, build and tests on Linux.
+- [x] Windows, macOS and Linux pass the supported CI matrix.
+- [x] MCP STDIO smoke test completes initialize, tools/list and a mocked ComfyUI image-generation/download flow without stdout contamination.
 - [ ] SQLite persistence, migration/restart behavior, job state transitions and asset path validation pass.
 - [ ] Failure tests cover invalid credentials, rate limits, timeouts, malformed provider responses, cancellation and partial downloads.
 
