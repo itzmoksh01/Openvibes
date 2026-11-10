@@ -13,7 +13,7 @@ The setup command detects supported installed clients and adds the Openvibes ent
 
 | Client | Automatic setup method | Configuration |
 |---|---|---|
-| Muse Code | Writes settings JSON | `~/.config/muse/settings.json` (or `$XDG_CONFIG_HOME/muse/settings.json`), `schema_version: 1`, `mcpServers` |
+| Muse Code | Writes settings JSON | `~/.config/muse/settings.json` (or `$XDG_CONFIG_HOME/muse/settings.json`), `mcp_servers`, `transport: "stdio"`, `enabled: true`, `mode: "optional"` |
 | Antigravity | Writes settings JSON | `~/.gemini/config/mcp_config.json` |
 | Codex | Uses `codex mcp add` | Codex CLI-managed config |
 | Claude Code | Uses `claude mcp add --scope user` | Claude Code CLI-managed config |
@@ -40,7 +40,7 @@ openvibes setup --client all
 
 Restart the MCP host after setup, then verify:
 
-**Muse Code:** run `/mcp` in a session. The settings file requires `schema_version: 1`; stdio server entries are under `mcpServers`. Official reference: https://meta-models.github.io/muse-code-sdk/next/guides/extend/mcp-servers/
+**Muse Code:** run `/mcp` in a session. The settings file requires `schema_version: 1`; stdio server entries are under `mcpServers`. Official reference: https://dev.meta.ai/docs/muse-code/extending
 
 **Antigravity:** open the MCP manager with `/mcp` in the CLI or Settings → MCP Servers in the IDE. Global config: `~/.gemini/config/mcp_config.json`. Official reference: https://www.antigravity.google/docs/cli/mcp/
 
