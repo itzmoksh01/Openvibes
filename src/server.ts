@@ -252,29 +252,16 @@ server.registerTool(
           nextStep: 'Call openvibes_comfy_list_checkpoints and choose an installed checkpoint.',
         });
       }
-      const workflow: Record<string, unknown> = {
-        '1': { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: input.checkpoint } },
-        '2': { class_type: 'CLIPTextEncode', inputs: { text: input.prompt, clip: ['1', 1] } },
-        '3': { class_type: 'CLIPTextEncode', inputs: { text: input.negative_prompt, clip: ['1', 1] } },
-        '4': { class_type: 'EmptyLatentImage', inputs: { width: input.width, height: input.height, batch_size: 1 } },
-        '5': {
-          class_type: 'KSampler',
-          inputs: {
-            seed: input.seed ?? randomInt(0, 2 ** 31 - 1),
-            steps: input.steps,
-            cfg: input.cfg,
-            sampler_name: 'euler',
-            scheduler: 'normal',
-            denoise: 1,
-            model: ['1', 0],
-            positive: ['2', 0],
-            negative: ['3', 0],
-            latent_image: ['4', 0],
-          },
-        },
-        '6': { class_type: 'VAEDecode', inputs: { samples: ['5', 0], vae: ['1', 2] } },
-        '7': { class_type: 'SaveImage', inputs: { filename_prefix: 'openvibes', images: ['6', 0] } },
-      };
+      const workflow = await comfy.createImageWorkflow({
+        prompt: input.prompt,
+        checkpoint: input.checkpoint,
+        negativePrompt: input.negative_prompt,
+        width: input.width,
+        height: input.height,
+        steps: input.steps,
+        cfg: input.cfg,
+        ...(input.seed !== undefined ? { seed: input.seed } : {}),
+      });
       return await runComfyWorkflow('image', input.prompt, workflow, input.timeout_seconds);
     } catch (error) {
       return text({ success: false, provider: comfy.id, error: error instanceof Error ? error.message : String(error) });
