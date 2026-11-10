@@ -78,7 +78,7 @@ export class CloudflareWorkersAiProvider {
     return body.result;
   }
 
-  async generateText(prompt: string, model = '@cf/meta/llama-3.1-8b-instruct') {
+  async generateText(prompt: string, model = '@cf/google/gemma-4-26b-a4b-it') {
     if (!prompt.trim()) throw new Error('CLOUDFLARE_TEXT_PROMPT_REQUIRED');
     return this.run(model, { prompt });
   }
