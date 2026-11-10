@@ -7,7 +7,7 @@ openvibes setup --client auto
 openvibes doctor
 ```
 
-The setup command detects supported installed clients and adds the Openvibes entry using each client's current MCP configuration format.
+Automatic setup always registers Muse Code, then detects other supported installed clients and adds the Openvibes entry using each client's current MCP configuration format.
 
 ## Supported clients
 
@@ -40,7 +40,7 @@ openvibes setup --client all
 
 Restart the MCP host after setup, then verify:
 
-**Muse Code:** run `/mcp` in a session. The settings file requires `schema_version: 1`; stdio server entries are under `mcpServers`. Official reference: https://dev.meta.ai/docs/muse-code/extending
+**Muse Code:** run `/mcp` in a session. Declare servers under `mcp_servers` with `transport: "stdio"`, `enabled: true`, and `mode: "optional"`. Official reference: https://dev.meta.ai/docs/muse-code/extending
 
 **Antigravity:** open the MCP manager with `/mcp` in the CLI or Settings → MCP Servers in the IDE. Global config: `~/.gemini/config/mcp_config.json`. Official reference: https://www.antigravity.google/docs/cli/mcp/
 
