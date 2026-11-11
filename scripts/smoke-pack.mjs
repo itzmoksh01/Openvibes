@@ -29,7 +29,7 @@ function readJsonLine(stream, timeoutMs = 10_000) {
     };
     const onData = (chunk) => {
       buffer += chunk;
-      const newline = buffer.indexOf('\\n');
+      const newline = buffer.indexOf('\n');
       if (newline < 0) return;
       const line = buffer.slice(0, newline).trim();
       cleanup();
@@ -66,14 +66,14 @@ async function verifyPackagedMcp(entrypoint, directory) {
         capabilities: {},
         clientInfo: { name: 'openvibes-packed-smoke', version: '1.0.0' },
       },
-    }) + '\\n');
+    }) + '\n');
     const initialized = await initialize;
     assert.equal(initialized.id, 1);
     assert.equal(initialized.result?.serverInfo?.name, 'openvibes');
 
     const tools = readJsonLine(child.stdout);
-    child.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\\n');
-    child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} }) + '\\n');
+    child.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n');
+    child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} }) + '\n');
     const listed = await tools;
     assert.equal(listed.id, 2);
     const names = new Set((listed.result?.tools ?? []).map((tool) => tool.name));
