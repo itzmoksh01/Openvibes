@@ -39,8 +39,9 @@ Run only with a user-owned account and an explicit spend limit. Never place secr
 
 ## MCP host verification
 
-- [ ] Test the exact packaged binary from a clean install, including MCP initialize and tools/list (new smoke test added; awaiting CI verification).
-- [ ] Verify setup for Muse Code and each supported host claimed in documentation.
+- [x] Test the exact packaged binary from a clean install, including CLI execution, MCP initialize and tools/list on Linux, Windows and macOS.
+- [x] Automated Muse Code setup test verifies config merge, backup creation, idempotency and that provider secrets are not written to config.
+- [ ] Verify setup and tool invocation inside real Muse Code and each other supported host claimed in documentation.
 - [ ] Verify config backup, merge behavior, idempotency, paths with spaces, and Windows paths.
 - [ ] Confirm credentials are inherited safely and never written to host config files.
 - [ ] Restart the host and invoke at least one tool end to end.
