@@ -295,14 +295,24 @@ export async function runCli(args: string[]): Promise<void> {
       const result = store.deleteExpiredDataBefore(cutoff);
       let filesDeleted = 0, filesMissing = 0, filesSkippedOutsideOutputDir = 0;
       const fileErrors: string[] = [];
-      const outputRoot = path.resolve(config.outputDir);
+      const configuredOutputRoot = path.resolve(config.outputDir);
+      let canonicalOutputRoot: string | undefined;
+      try { canonicalOutputRoot = fs.realpathSync(configuredOutputRoot); } catch { /* Missing/unavailable root means no media is eligible for deletion. */ }
       for (const assetPath of result.assetPaths) {
         const resolved = path.resolve(assetPath);
-        const relative = path.relative(outputRoot, resolved);
+        const relative = path.relative(configuredOutputRoot, resolved);
         if (!relative || relative === '.' || relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) {
           filesSkippedOutsideOutputDir++; continue;
         }
         try {
+          if (!canonicalOutputRoot) { filesMissing++; continue; }
+          // Resolve the parent directory too: a symlinked subfolder must not let cleanup
+          // follow an asset path outside the configured output root.
+          const canonicalParent = fs.realpathSync(path.dirname(resolved));
+          const canonicalRelative = path.relative(canonicalOutputRoot, canonicalParent);
+          if (canonicalRelative === '..' || canonicalRelative.startsWith('..' + path.sep) || path.isAbsolute(canonicalRelative)) {
+            filesSkippedOutsideOutputDir++; continue;
+          }
           const stat = fs.lstatSync(resolved);
           if (stat.isFile() || stat.isSymbolicLink()) { fs.unlinkSync(resolved); filesDeleted++; }
           else filesSkippedOutsideOutputDir++;
