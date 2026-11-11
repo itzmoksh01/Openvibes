@@ -15,6 +15,7 @@ test('doctor reports configured providers without exposing credential values', a
       dataDir: path.join(directory, 'data'),
       outputDir: path.join(directory, 'generated'),
       databasePath: path.join(directory, 'data', 'openvibes.sqlite'),
+      dailyLimits: { cloudflare: 20, pollinations: 20, comfyui: 0 },
     }, {
       CLOUDFLARE_ACCOUNT_ID: accountId,
       CLOUDFLARE_API_TOKEN: token,
@@ -42,6 +43,7 @@ test('doctor rejects an invalid ComfyUI URL without making a network request', a
       dataDir: path.join(directory, 'data'),
       outputDir: path.join(directory, 'generated'),
       databasePath: path.join(directory, 'data', 'openvibes.sqlite'),
+      dailyLimits: { cloudflare: 20, pollinations: 20, comfyui: 0 },
     }, { COMFYUI_URL: 'file:///etc/passwd' });
     assert.equal(report.providers.comfyUiLocal.status, 'INVALID_URL');
     assert.equal(report.network.checked, false);
@@ -57,6 +59,7 @@ test('doctor blocks remote unauthenticated ComfyUI endpoints unless HTTPS opt-in
     dataDir: path.join(directory, 'data'),
     outputDir: path.join(directory, 'generated'),
     databasePath: path.join(directory, 'data', 'openvibes.sqlite'),
+      dailyLimits: { cloudflare: 20, pollinations: 20, comfyui: 0 },
   };
   try {
     const blocked = diagnose(config, { COMFYUI_URL: 'http://192.168.1.20:8188' });
