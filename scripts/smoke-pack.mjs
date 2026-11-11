@@ -6,7 +6,7 @@ import path from 'node:path';
 import process from 'node:process';
 
 const root = process.cwd();
-const temporary = await mkdtemp(path.join(os.tmpdir(), 'openvibes-package-smoke-'));
+const temporary = await mkdtemp(path.join(os.tmpdir(), 'openvibes package smoke '));
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const runNpm = (args) => execFileSync(npm, args, {
   cwd: root,
@@ -48,10 +48,11 @@ async function verifyMuseSetup(entrypoint, directory) {
   const xdg = path.join(directory, 'isolated-xdg');
   const settings = path.join(xdg, 'muse', 'settings.json');
   await mkdir(path.dirname(settings), { recursive: true });
-  await writeFile(settings, JSON.stringify({
+  const originalSettings = JSON.stringify({
     mcp_servers: { existing: { command: 'existing-tool', args: ['keep-me'] } },
     preservedSetting: true,
-  }, null, 2));
+  }, null, 2);
+  await writeFile(settings, originalSettings);
 
   const env = {
     ...process.env,
@@ -81,10 +82,12 @@ async function verifyMuseSetup(entrypoint, directory) {
   assert.equal(config.mcp_servers.openvibes.enabled, true);
   assert.equal(config.mcp_servers.openvibes.mode, 'optional');
   assert.equal(config.mcp_servers.openvibes.args[1], 'mcp');
+  assert.ok(config.mcp_servers.openvibes.args[0].includes('openvibes package smoke '), 'MCP entrypoint path containing spaces must be preserved');
   const serialized = JSON.stringify(config);
   assert.equal(serialized.includes('must-not-be-written-to-client-config'), false);
   const backups = (await readdir(path.dirname(settings))).filter(name => name.includes('.openvibes-backup-'));
   assert.equal(backups.length, 1);
+  assert.equal(await readFile(path.join(path.dirname(settings), backups[0]), 'utf8'), originalSettings, 'backup must preserve the exact original settings bytes');
 
   const second = JSON.parse(execFileSync(process.execPath, [entrypoint, 'setup', '--client', 'muse'], {
     cwd: directory,
