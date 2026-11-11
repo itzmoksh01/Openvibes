@@ -7,7 +7,7 @@ import { getConfig } from '../config.js';
 import { Store } from '../database/store.js';
 import { diagnose } from '../services/diagnostics.js';
 
-const usage = "Openvibes CLI\n\nCommands:\n  openvibes setup [--client auto|all|muse|antigravity|codex|claude|zed]\n  openvibes status\n  openvibes doctor\n  openvibes jobs\n  openvibes assets\n  openvibes mcp\n  openvibes auth login\n  openvibes uninstall\n\nEnvironment:\n  COMFYUI_URL             Local ComfyUI base URL (loopback by default)\n  OPENVIBES_ALLOW_REMOTE_COMFYUI  Set true only for a trusted HTTPS ComfyUI endpoint\n  OPENVIBES_DATA_DIR      Persistent jobs/assets database directory\n  OPENVIBES_OUTPUT_DIR    Generated media directory\n  OPENVIBES_POLLINATIONS_API_KEY  Optional user-owned hosted inference key (keep secret)\n  CLOUDFLARE_ACCOUNT_ID     Cloudflare Workers AI account ID\n  CLOUDFLARE_API_TOKEN      Cloudflare Workers AI API token (keep secret)\n";
+const usage = "Openvibes CLI\n\nCommands:\n  openvibes setup [--client auto|all|muse|antigravity|codex|claude|zed]\n  openvibes status\n  openvibes doctor\n  openvibes jobs\n  openvibes assets\n  openvibes usage\n  openvibes cleanup --older-than-days N [--yes]\n  openvibes mcp\n  openvibes auth login\n  openvibes uninstall\n\nEnvironment:\n  COMFYUI_URL             Local ComfyUI base URL (loopback by default)\n  OPENVIBES_ALLOW_REMOTE_COMFYUI  Set true only for a trusted HTTPS ComfyUI endpoint\n  OPENVIBES_DATA_DIR      Persistent jobs/assets database directory\n  OPENVIBES_OUTPUT_DIR    Generated media directory\n  OPENVIBES_POLLINATIONS_API_KEY  Optional user-owned hosted inference key (keep secret)\n  CLOUDFLARE_ACCOUNT_ID     Cloudflare Workers AI account ID\n  CLOUDFLARE_API_TOKEN      Cloudflare Workers AI API token (keep secret)\n  OPENVIBES_DAILY_CLOUDFLARE_LIMIT  Daily Cloudflare cap (default 20; 0 = unlimited)\n  OPENVIBES_DAILY_POLLINATIONS_LIMIT Daily Pollinations cap (default 20; 0 = unlimited)\n  OPENVIBES_DAILY_COMFYUI_LIMIT     Daily ComfyUI cap (default 0 = unlimited)\n";
 
 type JsonObject = Record<string, unknown>;
 
@@ -120,6 +120,9 @@ function clientEnvironment(config: ReturnType<typeof getConfig>): Record<string,
     ...(process.env.OPENVIBES_ALLOW_REMOTE_COMFYUI === 'true'
       ? { OPENVIBES_ALLOW_REMOTE_COMFYUI: 'true' }
       : {}),
+    OPENVIBES_DAILY_CLOUDFLARE_LIMIT: String(config.dailyLimits.cloudflare),
+    OPENVIBES_DAILY_POLLINATIONS_LIMIT: String(config.dailyLimits.pollinations),
+    OPENVIBES_DAILY_COMFYUI_LIMIT: String(config.dailyLimits.comfyui),
   };
 }
 
@@ -154,13 +157,8 @@ function installCodex(config: ReturnType<typeof getConfig>, entrypoint: string) 
     return { client: 'Codex', alreadyConfigured: true, note: 'Existing entry was left unchanged.' };
   }
   const env = clientEnvironment(config);
-  const result = spawnSync('codex', [
-    'mcp', 'add', 'openvibes',
-    '--env', 'COMFYUI_URL=' + env.COMFYUI_URL,
-    '--env', 'OPENVIBES_DATA_DIR=' + env.OPENVIBES_DATA_DIR,
-    '--env', 'OPENVIBES_OUTPUT_DIR=' + env.OPENVIBES_OUTPUT_DIR,
-    '--', process.execPath, entrypoint, 'mcp',
-  ], { encoding: 'utf8', stdio: 'inherit', windowsHide: true, shell: process.platform === 'win32' });
+  const envArgs = Object.entries(env).flatMap(([key, value]) => ['--env', key + '=' + value]);
+  const result = spawnSync('codex', ['mcp', 'add', 'openvibes', ...envArgs, '--', process.execPath, entrypoint, 'mcp'], { encoding: 'utf8', stdio: 'inherit', windowsHide: true, shell: process.platform === 'win32' });
   if (result.error || result.status !== 0) {
     throw new Error('CODEX_MCP_ADD_FAILED: ' + (result.error?.message ?? result.stderr ?? result.status));
   }
@@ -176,13 +174,8 @@ function installClaude(config: ReturnType<typeof getConfig>, entrypoint: string)
     return { client: 'Claude Code', alreadyConfigured: true, note: 'Existing entry was left unchanged.' };
   }
   const env = clientEnvironment(config);
-  const result = spawnSync('claude', [
-    'mcp', 'add', '--scope', 'user', '--transport', 'stdio',
-    '-e', 'COMFYUI_URL=' + env.COMFYUI_URL,
-    '-e', 'OPENVIBES_DATA_DIR=' + env.OPENVIBES_DATA_DIR,
-    '-e', 'OPENVIBES_OUTPUT_DIR=' + env.OPENVIBES_OUTPUT_DIR,
-    'openvibes', '--', process.execPath, entrypoint, 'mcp',
-  ], { encoding: 'utf8', stdio: 'inherit', windowsHide: true, shell: process.platform === 'win32' });
+  const envArgs = Object.entries(env).flatMap(([key, value]) => ['-e', key + '=' + value]);
+  const result = spawnSync('claude', ['mcp', 'add', '--scope', 'user', '--transport', 'stdio', ...envArgs, 'openvibes', '--', process.execPath, entrypoint, 'mcp'], { encoding: 'utf8', stdio: 'inherit', windowsHide: true, shell: process.platform === 'win32' });
   if (result.error || result.status !== 0) {
     throw new Error('CLAUDE_MCP_ADD_FAILED: ' + (result.error?.message ?? result.stderr ?? result.status));
   }
@@ -266,6 +259,45 @@ export async function runCli(args: string[]): Promise<void> {
   }
   if (command === 'status' || command === 'doctor') {
     process.stdout.write(JSON.stringify(diagnose(config), null, 2) + '\n');
+    return;
+  }
+  if (command === 'usage') {
+    const store = new Store(config.databasePath);
+    try {
+      process.stdout.write(JSON.stringify({timezone:'UTC',providers:{
+        'cloudflare-workers-ai':store.getDailyUsage('cloudflare-workers-ai',config.dailyLimits.cloudflare),
+        'pollinations-hosted':store.getDailyUsage('pollinations-hosted',config.dailyLimits.pollinations),
+        'comfyui-local':store.getDailyUsage('comfyui-local',config.dailyLimits.comfyui),
+      },note:'Request counts are not dollar-spend estimates. Provider-side budgets still apply.'},null,2)+'\n');
+    } finally { store.close(); }
+    return;
+  }
+  if (command === 'cleanup') {
+    const i=args.indexOf('--older-than-days'); const days=i>=0?Number(args[i+1]):NaN;
+    if(!Number.isSafeInteger(days)||days<1||days>3650) {
+      process.stderr.write('Usage: openvibes cleanup --older-than-days N [--yes] (N must be 1..3650).\n');
+      process.exitCode=2; return;
+    }
+    const cutoff=new Date(Date.now()-days*86400000).toISOString();
+    const store=new Store(config.databasePath);
+    try {
+      const preview=store.previewExpiredDataBefore(cutoff);
+      if(!args.includes('--yes')) {
+        process.stdout.write(JSON.stringify({dryRun:true,cutoff,olderThanDays:days,jobsThatWouldBeDeleted:preview.jobs,assetsThatWouldBeDeleted:preview.assets,note:'Nothing deleted. Add --yes to delete old records and eligible files under OPENVIBES_OUTPUT_DIR.'},null,2)+'\n');
+        return;
+      }
+      const result=store.deleteExpiredDataBefore(cutoff);
+      let filesDeleted=0,filesMissing=0,filesSkippedOutsideOutputDir=0; const fileErrors:string[]=[];
+      const outputRoot=path.resolve(config.outputDir);
+      for(const assetPath of result.assetPaths) {
+        const resolved=path.resolve(assetPath); const relative=path.relative(outputRoot,resolved);
+        if(!relative||relative==='.'||relative==='..'||relative.startsWith('..'+path.sep)||path.isAbsolute(relative)) {filesSkippedOutsideOutputDir++;continue;}
+        try { const stat=fs.lstatSync(resolved); if(stat.isFile()||stat.isSymbolicLink()){fs.unlinkSync(resolved);filesDeleted++;}else filesSkippedOutsideOutputDir++; }
+        catch(error) { if((error as NodeJS.ErrnoException).code==='ENOENT') filesMissing++; else fileErrors.push(resolved+': '+(error instanceof Error?error.message:String(error))); }
+      }
+      process.stdout.write(JSON.stringify({dryRun:false,cutoff,olderThanDays:days,jobsDeleted:result.jobsDeleted,assetsDeleted:result.assetsDeleted,filesDeleted,filesMissing,filesSkippedOutsideOutputDir,fileErrors},null,2)+'\n');
+      if(fileErrors.length) process.exitCode=1;
+    } finally { store.close(); }
     return;
   }
   if (command === 'jobs' || command === 'assets') {

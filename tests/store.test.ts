@@ -73,7 +73,7 @@ test('SQLite rejects missing jobs and invalid asset metadata', async () => {
   }
 });
 
-test('SQLite adopts an existing version-zero database as schema version one', async () => {
+test('SQLite adopts an existing version-zero database as schema version two', async () => {
   const directory = await mkdtemp(path.join(tmpdir(), 'openvibes-store-migration-'));
   const databasePath = path.join(directory, 'legacy.sqlite');
   const legacy = new DatabaseSync(databasePath);
@@ -103,7 +103,7 @@ test('SQLite adopts an existing version-zero database as schema version one', as
     const verify = new DatabaseSync(databasePath);
     try {
       const version = verify.prepare('PRAGMA user_version').get() as { user_version: number };
-      assert.equal(version.user_version, 1);
+      assert.equal(version.user_version, 2);
     } finally {
       verify.close();
     }
@@ -155,4 +155,34 @@ test('SQLite enforces safe job-state transitions and protects terminal jobs', as
     store.close();
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+
+test('daily provider quotas are shared across Store instances and reset by UTC date', async () => {
+  const directory=await mkdtemp(path.join(tmpdir(),'openvibes-quota-'));
+  const dbPath=path.join(directory,'openvibes.sqlite');
+  const a=new Store(dbPath), b=new Store(dbPath);
+  const today=new Date('2026-11-11T12:00:00.000Z');
+  try {
+    assert.equal(a.reserveDailyUsage('pollinations-hosted',2,today).used,1);
+    assert.equal(b.reserveDailyUsage('pollinations-hosted',2,today).used,2);
+    assert.throws(()=>a.reserveDailyUsage('pollinations-hosted',2,today),/DAILY_USAGE_LIMIT_REACHED/);
+    assert.equal(b.getDailyUsage('pollinations-hosted',2,today).remaining,0);
+    assert.equal(a.reserveDailyUsage('comfyui-local',0,today).unlimited,true);
+  } finally { a.close();b.close();await rm(directory,{recursive:true,force:true}); }
+});
+
+test('expired jobs and assets can be previewed and deleted transactionally', async () => {
+  const directory=await mkdtemp(path.join(tmpdir(),'openvibes-cleanup-'));
+  const dbPath=path.join(directory,'openvibes.sqlite'); const store=new Store(dbPath);
+  try {
+    const job=store.createJob({kind:'image',state:'SUBMITTING',provider:'test-provider',prompt:'old',optimizedPrompt:'old',input:{}});
+    store.addAsset({jobId:job.id,filename:'old.png',mimeType:'image/png',sizeBytes:1,sha256:'a'.repeat(64),path:path.join(directory,'old.png')});
+    const db=new DatabaseSync(dbPath);db.prepare('UPDATE jobs SET created_at=? WHERE id=?').run('2020-01-01T00:00:00.000Z',job.id);db.close();
+    const cutoff='2021-01-01T00:00:00.000Z'; const preview=store.previewExpiredDataBefore(cutoff);
+    assert.equal(preview.jobs,1);assert.equal(preview.assets,1);
+    const result=store.deleteExpiredDataBefore(cutoff);
+    assert.equal(result.jobsDeleted,1);assert.equal(result.assetsDeleted,1);assert.equal(result.assetPaths.length,1);
+    assert.equal(store.getJob(job.id),undefined);
+  } finally {store.close();await rm(directory,{recursive:true,force:true});}
 });
