@@ -185,7 +185,7 @@ server.registerTool(
 server.registerTool(
   'openvibes_generate_image',
   {
-    description: 'Generate with Meta Vibes free plan. Currently returns BLOCKED because authorized unattended free-plan API access has not been verified.',
+    description: 'DISABLED: This tool does not generate with Meta Vibes. It returns BLOCKED until Meta documents and authorizes an unattended API for ordinary free-plan accounts. No browser automation, private endpoint, copied cookie, or paid fallback is used.',
     inputSchema: generationSchema,
   },
   async (input) => blockedMeta('image', input),
@@ -193,7 +193,7 @@ server.registerTool(
 server.registerTool(
   'openvibes_generate_video',
   {
-    description: 'Generate with Meta Vibes free plan. Currently returns BLOCKED because authorized unattended free-plan API access has not been verified.',
+    description: 'DISABLED: This tool does not generate with Meta Vibes. It returns BLOCKED until Meta documents and authorizes an unattended API for ordinary free-plan accounts. No browser automation, private endpoint, copied cookie, or paid fallback is used.',
     inputSchema: generationSchema,
   },
   async (input) => blockedMeta('video', input),
@@ -201,7 +201,7 @@ server.registerTool(
 server.registerTool(
   'openvibes_animate_image',
   {
-    description: 'Animate an image with Meta Vibes free plan. Currently returns BLOCKED pending an authorized unattended interface.',
+    description: 'DISABLED: This tool does not animate images with Meta Vibes. It returns BLOCKED until Meta documents and authorizes an unattended free-plan interface. No browser automation, private endpoint, copied cookie, or paid fallback is used.',
     inputSchema: generationSchema.extend({ source_image: z.string().min(1).max(2000) }),
   },
   async (input) => blockedMeta('image-to-video', input),
