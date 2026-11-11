@@ -101,6 +101,41 @@ async function verifyMuseSetup(entrypoint, directory) {
   assert.equal(backupsAfterSecondRun.length, 1);
 }
 
+
+async function verifyMuseSetupRejectsUnsafeConfig(entrypoint, directory) {
+  const xdg = path.join(directory, 'unsafe-xdg');
+  const settings = path.join(xdg, 'muse', 'settings.json');
+  await mkdir(path.dirname(settings), { recursive: true });
+  const env = {
+    ...process.env,
+    HOME: path.join(directory, 'unsafe-home'),
+    USERPROFILE: path.join(directory, 'unsafe-home'),
+    XDG_CONFIG_HOME: xdg,
+    OPENVIBES_DATA_DIR: path.join(directory, 'unsafe-data'),
+    OPENVIBES_OUTPUT_DIR: path.join(directory, 'unsafe-generated'),
+  };
+
+  for (const [name, original] of [
+    ['malformed', '{ this is not valid JSON'],
+    ['conflicting', JSON.stringify({
+      mcp_servers: { openvibes: { command: 'different-binary', args: ['do-not-touch'] } },
+      preserved: true,
+    }, null, 2)],
+  ]) {
+    await writeFile(settings, original);
+    const result = spawnSync(process.execPath, [entrypoint, 'setup', '--client', 'muse'], {
+      cwd: directory,
+      env,
+      encoding: 'utf8',
+      windowsHide: true,
+    });
+    assert.equal(result.status, 2, name + ' config must be rejected');
+    assert.equal(await readFile(settings, 'utf8'), original, name + ' config bytes must remain unchanged');
+    const siblings = await readdir(path.dirname(settings));
+    assert.equal(siblings.some((entry) => entry.includes('.openvibes-backup-')), false, name + ' config must not be backed up as if it were safe to rewrite');
+  }
+}
+
 async function verifyPackagedMcp(entrypoint, directory) {
   const child = spawn(process.execPath, [entrypoint, 'mcp'], {
     cwd: directory,
@@ -165,6 +200,7 @@ try {
   assert.match(output, /Openvibes CLI/);
   assert.match(output, /openvibes setup/);
   await verifyMuseSetup(entrypoint, temporary);
+  await verifyMuseSetupRejectsUnsafeConfig(entrypoint, temporary);
   await verifyPackagedMcp(entrypoint, temporary);
   process.stdout.write('Package smoke test passed: tarball installed, CLI executed, MCP initialized and tools listed.\n');
 } finally {
