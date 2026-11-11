@@ -19,9 +19,10 @@ A green unit-test suite is necessary but is not sufficient for a production rele
 - [x] MCP STDIO smoke test completes initialize, tools/list and a mocked ComfyUI image-generation/download flow without stdout contamination.
 - [x] SQLite job and asset records persist across a Store close/reopen cycle.
 - [x] Asset filename, metadata and path-traversal validation have automated tests.
-- [ ] Add explicit versioned schema migrations and test upgrades from a prior released database.
+- [x] Introduce SQLite schema version 1, adopt existing version-zero databases safely, and reject databases created by a newer schema version.
 - [ ] Validate every job-state transition and recover or safely fail interrupted jobs after process restart.
-- [ ] Failure tests cover invalid credentials, rate limits, timeouts, malformed provider responses, cancellation and partial downloads.
+- [x] Automated tests cover missing credentials, malformed JSON, oversized responses, invalid ComfyUI URLs, and queued-job cancellation.
+- [ ] Add provider rate-limit and timeout tests plus interrupted/partial media-download recovery tests.
 
 ## Live provider verification
 
