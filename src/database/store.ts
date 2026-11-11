@@ -31,9 +31,9 @@ export class Store {
     this.db.exec('PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON; PRAGMA synchronous=NORMAL;');
     const currentVersionRow = this.db.prepare('PRAGMA user_version').get() as { user_version?: number };
     const currentVersion = Number(currentVersionRow.user_version ?? 0);
-    if (currentVersion > 1) {
+    if (currentVersion > 2) {
       this.db.close();
-      throw new Error(`DATABASE_SCHEMA_TOO_NEW: database version ${currentVersion} is newer than supported version 1.`);
+      throw new Error(`DATABASE_SCHEMA_TOO_NEW: database version ${currentVersion} is newer than supported version 2.`);
     }
     this.db.exec('BEGIN IMMEDIATE');
     try {
@@ -66,7 +66,15 @@ export class Store {
         created_at TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_assets_created ON assets(created_at DESC);
-      PRAGMA user_version=1;
+      CREATE TABLE IF NOT EXISTS provider_usage (
+        provider TEXT NOT NULL,
+        usage_date TEXT NOT NULL,
+        used INTEGER NOT NULL CHECK (used >= 0),
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY(provider, usage_date)
+      );
+      CREATE INDEX IF NOT EXISTS idx_provider_usage_date ON provider_usage(usage_date);
+      PRAGMA user_version=2;
       `);
       this.db.exec('COMMIT');
     } catch (error) {
@@ -226,6 +234,72 @@ export class Store {
     const bounded = Math.min(Math.max(Math.trunc(limit), 1), 100);
     return (this.db.prepare('SELECT * FROM assets ORDER BY created_at DESC LIMIT ?').all(bounded) as Record<string, unknown>[])
       .map((row) => this.mapAsset(row));
+  }
+
+  getDailyUsage(provider: string, limit: number, at = new Date()) {
+    if (!/^[a-z0-9][a-z0-9._-]{0,63}$/i.test(provider)) throw new Error('INVALID_USAGE_PROVIDER');
+    if (!Number.isSafeInteger(limit) || limit < 0 || limit > 1_000_000) throw new Error('INVALID_DAILY_LIMIT');
+    if (Number.isNaN(at.getTime())) throw new Error('INVALID_USAGE_DATE');
+    const date = at.toISOString().slice(0, 10);
+    const row = this.db.prepare('SELECT used FROM provider_usage WHERE provider=? AND usage_date=?')
+      .get(provider, date) as { used?: number } | undefined;
+    const used = Number(row?.used ?? 0);
+    return { provider, date, used, limit, remaining: limit === 0 ? null : Math.max(0, limit - used), unlimited: limit === 0 };
+  }
+
+  reserveDailyUsage(provider: string, limit: number, at = new Date()) {
+    if (!/^[a-z0-9][a-z0-9._-]{0,63}$/i.test(provider)) throw new Error('INVALID_USAGE_PROVIDER');
+    if (!Number.isSafeInteger(limit) || limit < 0 || limit > 1_000_000) throw new Error('INVALID_DAILY_LIMIT');
+    if (Number.isNaN(at.getTime())) throw new Error('INVALID_USAGE_DATE');
+    const date = at.toISOString().slice(0, 10);
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      const row = this.db.prepare('SELECT used FROM provider_usage WHERE provider=? AND usage_date=?')
+        .get(provider, date) as { used?: number } | undefined;
+      const used = Number(row?.used ?? 0);
+      if (limit > 0 && used >= limit) {
+        throw new Error(`DAILY_USAGE_LIMIT_REACHED: provider=${provider} date=${date} limit=${limit} used=${used}. Increase the limit or wait until the next UTC day.`);
+      }
+      const nextUsed = used + 1;
+      this.db.prepare(
+        'INSERT INTO provider_usage(provider, usage_date, used, updated_at) VALUES(?,?,?,?) ' +
+        'ON CONFLICT(provider, usage_date) DO UPDATE SET used=excluded.used, updated_at=excluded.updated_at',
+      ).run(provider, date, nextUsed, new Date().toISOString());
+      this.db.exec('COMMIT');
+      return { provider, date, used: nextUsed, limit, remaining: limit === 0 ? null : Math.max(0, limit - nextUsed), unlimited: limit === 0 };
+    } catch (error) {
+      try { this.db.exec('ROLLBACK'); } catch { /* Preserve the original error. */ }
+      throw error;
+    }
+  }
+
+  previewExpiredDataBefore(cutoffIso: string) {
+    if (!Number.isFinite(Date.parse(cutoffIso))) throw new Error('INVALID_CLEANUP_CUTOFF');
+    const jobs = this.db.prepare('SELECT COUNT(*) AS count FROM jobs WHERE created_at < ?')
+      .get(cutoffIso) as { count?: number };
+    const assets = this.db.prepare(
+      'SELECT COUNT(*) AS count FROM assets WHERE job_id IN (SELECT id FROM jobs WHERE created_at < ?)',
+    ).get(cutoffIso) as { count?: number };
+    return { jobs: Number(jobs.count ?? 0), assets: Number(assets.count ?? 0) };
+  }
+
+  deleteExpiredDataBefore(cutoffIso: string) {
+    if (!Number.isFinite(Date.parse(cutoffIso))) throw new Error('INVALID_CLEANUP_CUTOFF');
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      const assets = this.db.prepare(
+        'SELECT path FROM assets WHERE job_id IN (SELECT id FROM jobs WHERE created_at < ?)',
+      ).all(cutoffIso) as Array<{ path: string }>;
+      const assetResult = this.db.prepare(
+        'DELETE FROM assets WHERE job_id IN (SELECT id FROM jobs WHERE created_at < ?)',
+      ).run(cutoffIso);
+      const jobResult = this.db.prepare('DELETE FROM jobs WHERE created_at < ?').run(cutoffIso);
+      this.db.exec('COMMIT');
+      return { jobsDeleted: Number(jobResult.changes), assetsDeleted: Number(assetResult.changes), assetPaths: assets.map(row => String(row.path)) };
+    } catch (error) {
+      try { this.db.exec('ROLLBACK'); } catch { /* Preserve the original error. */ }
+      throw error;
+    }
   }
 
   close(): void {

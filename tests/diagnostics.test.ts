@@ -15,6 +15,8 @@ test('doctor reports configured providers without exposing credential values', a
       dataDir: path.join(directory, 'data'),
       outputDir: path.join(directory, 'generated'),
       databasePath: path.join(directory, 'data', 'openvibes.sqlite'),
+    dailyLimits: { cloudflare: 20, pollinations: 20, comfyui: 0 },
+      dailyLimits: { cloudflare: 20, pollinations: 20, comfyui: 0 },
       dailyLimits: { cloudflare: 20, pollinations: 20, comfyui: 0 },
     }, {
       CLOUDFLARE_ACCOUNT_ID: accountId,
@@ -27,6 +29,7 @@ test('doctor reports configured providers without exposing credential values', a
     assert.equal(report.providers.cloudflareWorkersAi.status, 'CONFIGURED_NOT_LIVE_TESTED');
     assert.equal(report.providers.pollinations.status, 'CONFIGURED_NOT_LIVE_TESTED');
     assert.equal(report.providers.comfyUiLocal.status, 'CONFIGURED_NOT_CONNECTED');
+    assert.equal(report.usageLimits.cloudflareDaily, 20);
     const serialized = JSON.stringify(report);
     assert.equal(serialized.includes(token), false);
     assert.equal(serialized.includes(apiKey), false);
@@ -43,6 +46,8 @@ test('doctor rejects an invalid ComfyUI URL without making a network request', a
       dataDir: path.join(directory, 'data'),
       outputDir: path.join(directory, 'generated'),
       databasePath: path.join(directory, 'data', 'openvibes.sqlite'),
+    dailyLimits: { cloudflare: 20, pollinations: 20, comfyui: 0 },
+      dailyLimits: { cloudflare: 20, pollinations: 20, comfyui: 0 },
       dailyLimits: { cloudflare: 20, pollinations: 20, comfyui: 0 },
     }, { COMFYUI_URL: 'file:///etc/passwd' });
     assert.equal(report.providers.comfyUiLocal.status, 'INVALID_URL');
@@ -59,6 +64,8 @@ test('doctor blocks remote unauthenticated ComfyUI endpoints unless HTTPS opt-in
     dataDir: path.join(directory, 'data'),
     outputDir: path.join(directory, 'generated'),
     databasePath: path.join(directory, 'data', 'openvibes.sqlite'),
+    dailyLimits: { cloudflare: 20, pollinations: 20, comfyui: 0 },
+      dailyLimits: { cloudflare: 20, pollinations: 20, comfyui: 0 },
       dailyLimits: { cloudflare: 20, pollinations: 20, comfyui: 0 },
   };
   try {
