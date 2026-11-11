@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { writeFileAtomic } from '../services/assets.js';
 import { readResponseBuffer, readResponseJson, readResponseText } from '../services/http.js';
 
 const API = 'https://api.cloudflare.com/client/v4';
@@ -127,7 +128,7 @@ export class CloudflareWorkersAiProvider {
     await fs.mkdir(folder, { recursive: true, mode: 0o700 });
     const filename = 'cloudflare-tts-' + randomUUID() + format.extension;
     const target = path.join(folder, filename);
-    await fs.writeFile(target, bytes, { flag: 'wx', mode: 0o600 });
+    await writeFileAtomic(target, bytes);
     return {
       path: target,
       filename,
@@ -155,7 +156,7 @@ export class CloudflareWorkersAiProvider {
     await fs.mkdir(folder, { recursive: true, mode: 0o700 });
     const filename = 'cloudflare-' + randomUUID() + format.extension;
     const target = path.join(folder, filename);
-    await fs.writeFile(target, bytes, { flag: 'wx', mode: 0o600 });
+    await writeFileAtomic(target, bytes);
     return {
       path: target,
       filename,

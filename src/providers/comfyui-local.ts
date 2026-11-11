@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash, randomInt, randomUUID } from 'node:crypto';
-import { safeAssetPath } from '../services/assets.js';
+import { safeAssetPath, writeFileAtomic } from '../services/assets.js';
 import { readResponseBuffer, readResponseJson, readResponseText } from '../services/http.js';
 
 export interface ComfyOutput {
@@ -249,14 +249,14 @@ export class ComfyUiLocalProvider {
 
       let finalPath = target;
       try {
-        await fs.writeFile(finalPath, bytes, { mode: 0o600, flag: 'wx' });
+        await writeFileAtomic(finalPath, bytes);
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
         finalPath = path.join(
           path.dirname(target),
           `${path.parse(filename).name}-${promptId.slice(0, 8)}-${randomUUID().slice(0, 8)}${extension}`,
         );
-        await fs.writeFile(finalPath, bytes, { mode: 0o600, flag: 'wx' });
+        await writeFileAtomic(finalPath, bytes);
       }
       results.push({
         path: finalPath, filename: path.basename(finalPath),

@@ -126,3 +126,74 @@ test('async provider job identifiers are validated before polling', async () => 
     globalThis.fetch = originalFetch;
   }
 });
+
+
+test('Pollinations surfaces rate limits with a stable HTTP error code', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => new Response('rate limited', { status: 429 })) as typeof fetch;
+  try {
+    const provider = new PollinationsProvider('sk_test', tmpdir());
+    await assert.rejects(
+      () => provider.generateText('hello', 'test/model'),
+      /POLLINATIONS_TEXT_HTTP_429/,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('Pollinations propagates request timeouts for caller-visible handling', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => {
+    throw new DOMException('The operation was aborted due to timeout', 'TimeoutError');
+  }) as typeof fetch;
+  try {
+    const provider = new PollinationsProvider('sk_test', tmpdir());
+    await assert.rejects(
+      () => provider.generateText('hello', 'test/model'),
+      (error: unknown) => error instanceof DOMException && error.name === 'TimeoutError',
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('Pollinations async job polling retries HTTP 429 and 5xx before accepting success', async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'openvibes-polli-retry-'));
+  const originalFetch = globalThis.fetch;
+  const originalTimeout = globalThis.setTimeout;
+  const videoBytes = Buffer.from([0, 0, 0, 1, 5, 9]);
+  let statusCalls = 0;
+  globalThis.setTimeout = ((callback: (...args: unknown[]) => void) => {
+    queueMicrotask(() => callback());
+    return 0 as unknown as NodeJS.Timeout;
+  }) as typeof setTimeout;
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);
+    if (url.pathname.startsWith('/video/')) {
+      return json({ id: 'job-retry-123', status: 'pending', status_url: '/v1/jobs/job-retry-123' }, 202);
+    }
+    if (url.pathname === '/v1/jobs/job-retry-123') {
+      statusCalls++;
+      if (statusCalls === 1) return new Response('rate limited', { status: 429 });
+      if (statusCalls === 2) return new Response('temporary upstream error', { status: 503 });
+      return json({ status: 'succeeded' });
+    }
+    if (url.pathname === '/v1/jobs/job-retry-123/result') {
+      return new Response(videoBytes, { status: 200, headers: { 'content-type': 'video/mp4' } });
+    }
+    return new Response('not found', { status: 404 });
+  }) as typeof fetch;
+
+  try {
+    const provider = new PollinationsProvider('sk_test', directory);
+    const result = await provider.generateMedia('video', 'a retryable clip', 'test/video');
+    assert.equal(statusCalls, 3);
+    assert.equal(result.providerJobId, 'job-retry-123');
+    assert.deepEqual(await readFile(result.path), videoBytes);
+  } finally {
+    globalThis.fetch = originalFetch;
+    globalThis.setTimeout = originalTimeout;
+    await rm(directory, { recursive: true, force: true });
+  }
+});

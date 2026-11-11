@@ -74,3 +74,42 @@ test('Cloudflare rejects model IDs that could alter the API route', async () => 
     /CLOUDFLARE_MODEL_ID_INVALID/,
   );
 });
+
+
+test('Cloudflare surfaces HTTP rate limits with the provider status', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => new Response('rate limited', { status: 429 })) as typeof fetch;
+  try {
+    const provider = new CloudflareWorkersAiProvider(
+      '0123456789abcdef0123456789abcdef',
+      'cf_test_token',
+      tmpdir(),
+    );
+    await assert.rejects(
+      () => provider.generateText('hello'),
+      /CLOUDFLARE_AI_HTTP_429/,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('Cloudflare propagates transport timeouts for caller-visible handling', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => {
+    throw new DOMException('The operation was aborted due to timeout', 'TimeoutError');
+  }) as typeof fetch;
+  try {
+    const provider = new CloudflareWorkersAiProvider(
+      '0123456789abcdef0123456789abcdef',
+      'cf_test_token',
+      tmpdir(),
+    );
+    await assert.rejects(
+      () => provider.generateText('hello'),
+      (error: unknown) => error instanceof DOMException && error.name === 'TimeoutError',
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

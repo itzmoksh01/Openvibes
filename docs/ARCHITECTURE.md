@@ -21,6 +21,7 @@ Coding agent -> MCP STDIO server -> tools -> job store / prompt engine
 - Runtime: Node.js 22.13+.
 - Validation: Zod v4.
 - Job persistence: Node built-in node:sqlite. Job-state transitions are checked and committed under a SQLite write transaction, including when multiple MCP processes share the database.
+- Media persistence: completed output bytes are written to a private same-directory temporary file, synced, and atomically linked into their final path. Existing assets are never overwritten and readers cannot observe a partially written final asset.
 - Restart recovery: when a ComfyUI `promptId` has been persisted, call `openvibes_list_jobs` and then `openvibes_wait_for_job` with the saved `job_id` after restarting the MCP host. Openvibes resumes polling and output download instead of resubmitting the workflow.
 - Recovery boundary: if the process stops while a job is still `SUBMITTING` and before the provider ID is stored, the remote outcome is ambiguous. Openvibes deliberately does not automatically resubmit it, because ComfyUI may already have accepted the request. Inspect the ComfyUI queue/history before taking manual action.
 - Meta provider: evidence-gated and blocked until official authorization for unattended free-account generation is verified.

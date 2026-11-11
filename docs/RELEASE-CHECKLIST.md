@@ -25,7 +25,11 @@ A green unit-test suite is necessary but is not sufficient for a production rele
   - [x] MCP integration test proves a persisted ComfyUI job with a saved prompt ID can be resumed after a fresh server process starts.
   - [ ] A crash before the provider ID is persisted (or during a synchronous hosted request) remains an ambiguous outcome and requires provider-side inspection; automatic resubmission is intentionally disabled.
 - [x] Automated tests cover missing credentials, malformed JSON, oversized responses, invalid ComfyUI URLs, and queued-job cancellation.
-- [ ] Add provider rate-limit and timeout tests plus interrupted/partial media-download recovery tests.
+- [x] Add provider rate-limit and timeout tests plus interrupted/partial media-download recovery tests.
+  - [x] ComfyUI, Pollinations and Cloudflare expose HTTP 429 failures and propagate transport timeouts to the caller.
+  - [x] Pollinations async polling retries HTTP 429 and 5xx responses before accepting a successful result.
+  - [x] ComfyUI, Pollinations and Cloudflare persist media via same-directory temporary files and atomic create-if-absent links.
+  - [x] Tests verify atomic writes do not overwrite existing files, do not leave temp files, and remain safe under concurrent writers; interrupted ComfyUI response streams produce no visible output file.
 
 ## Live provider verification
 

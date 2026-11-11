@@ -4,6 +4,7 @@
 - [x] Evidence-gated Meta Vibes free provider boundary.
 - [x] SQLite job persistence and transactional lifecycle transition validation.
 - [x] Resume ComfyUI jobs after MCP restart when the provider prompt ID was persisted; document ambiguous pre-ID crash boundary.
+- [x] Atomic media persistence and regression tests for rate limits, request timeouts and interrupted downloads.
 - [x] Prompt structuring and local diagnostics.
 - [x] ComfyUI local API adapter for workflow submission, polling, output download and queue cancellation.
 - [x] One-call local text-to-image using installed standard ComfyUI checkpoints.

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
@@ -94,4 +94,53 @@ test('rejects unsafe ComfyUI URLs and unsafe output paths', () => {
   assert.equal(new ComfyUiLocalProvider('http://user:pass@127.0.0.1:8188').configurationError, 'INVALID_COMFYUI_URL');
   assert.throws(() => safeAssetPath('/tmp/openvibes', 'images', '../escape.png'), /INVALID_FILENAME/);
   assert.throws(() => safeAssetPath('/tmp/openvibes', 'images', 'file.exe'), /UNSUPPORTED_MEDIA_EXTENSION/);
+});
+
+
+test('partial ComfyUI media response is rejected without exposing an output file', async () => {
+  const outputDir = await mkdtemp(path.join(tmpdir(), 'openvibes-comfy-partial-'));
+  const originalFetch = globalThis.fetch;
+  try {
+    await mkdir(path.join(outputDir, 'images'), { recursive: true });
+    globalThis.fetch = (async () => new Response(new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array([137, 80, 78, 71, 13]));
+        controller.error(new Error('MOCK_MEDIA_STREAM_INTERRUPTED'));
+      },
+    }), { status: 200, headers: { 'content-type': 'image/png' } })) as typeof fetch;
+
+    const provider = new ComfyUiLocalProvider('http://127.0.0.1:8188', outputDir);
+    await assert.rejects(
+      () => provider.download(promptId, {
+        outputs: { '7': { images: [{ filename: 'partial.png', subfolder: '', type: 'output' }] } },
+      }),
+      /MOCK_MEDIA_STREAM_INTERRUPTED/,
+    );
+    assert.deepEqual(await readdir(path.join(outputDir, 'images')), []);
+  } finally {
+    globalThis.fetch = originalFetch;
+    await rm(outputDir, { recursive: true, force: true });
+  }
+});
+
+test('ComfyUI surfaces HTTP rate limits and transport timeouts without hiding their causes', async () => {
+  const originalFetch = globalThis.fetch;
+  const provider = new ComfyUiLocalProvider('http://127.0.0.1:8188', tmpdir());
+  try {
+    globalThis.fetch = (async () => new Response('too many requests', { status: 429 })) as typeof fetch;
+    await assert.rejects(
+      () => provider.submit({ '1': { class_type: 'TestNode', inputs: {} } }),
+      /COMFYUI_HTTP_429/,
+    );
+
+    globalThis.fetch = (async () => {
+      throw new DOMException('The operation was aborted due to timeout', 'TimeoutError');
+    }) as typeof fetch;
+    await assert.rejects(
+      () => provider.submit({ '1': { class_type: 'TestNode', inputs: {} } }),
+      (error: unknown) => error instanceof DOMException && error.name === 'TimeoutError',
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
