@@ -4,6 +4,21 @@ Openvibes declares the npm package as `openvibes-mcp` at version `0.3.0`. The re
 
 The npm account's Trusted Publisher settings must be configured by the package owner. No npm credentials or long-lived write token are required in GitHub Actions once OIDC trusted publishing is active.
 
+## First publication bootstrap
+
+A trusted-publisher relationship is configured on an existing npm package. The npm CLI's `npm trust` documentation also lists package existence as a prerequisite. Because `openvibes-mcp` has not yet been published from this repository, the owner must create the package once before adding the GitHub Actions trusted publisher.
+
+1. First check that the name is available and belongs to the intended owner: `npm view openvibes-mcp name`. If it resolves to a package owned by someone else, stop and do not publish.
+2. On the owner's computer, clone this repository, use Node.js 22.14+ and npm 11.5.1+, then run `npm ci`, `npm run check`, and `npm pack --dry-run`.
+3. Sign in interactively to the intended npm owner account with 2FA enabled, review the packed files, and perform the one-time initial `0.3.0` publish with `npm publish --access public`.
+4. Once the package page exists, configure the GitHub Actions trusted publisher below.
+5. Revoke any one-time token or other temporary publishing credential used for the bootstrap. Do not save it in GitHub Actions secrets.
+6. Future releases must use a new matching version/tag (for example `0.3.1` / `v0.3.1`) after the exact commit's CI and CodeQL checks pass. Do not re-publish the already bootstrapped `0.3.0` tag.
+
+The initial local bootstrap publish does not get GitHub Actions provenance. The subsequent OIDC releases do. This one-time bootstrap limitation is an npm package-creation prerequisite, not a reason to add a long-lived write token to the repository.
+
+References: [npm Trusted Publishing](https://docs.npmjs.com/trusted-publishers/) and [npm trust command prerequisites](https://github.com/npm/cli/blob/latest/docs/lib/content/commands/npm-trust.md).
+
 ## Exact npm Trusted Publisher settings
 
 On npmjs.com, open the `openvibes-mcp` package settings and add a **GitHub Actions** trusted publisher. Use these exact values:
