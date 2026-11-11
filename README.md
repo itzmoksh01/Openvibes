@@ -138,14 +138,17 @@ npm test
 
 GitHub Actions checks Node.js 22 and 24 on Ubuntu, plus Node.js 22 on Windows and macOS. It runs type-checking, build, tests, dependency audit, package-content verification and CLI smoke checks. A passing CI run still does not replace a live provider test. Do not call a release production-ready until the release checklist in [docs/RELEASE-CHECKLIST.md](docs/RELEASE-CHECKLIST.md) is complete.
 
-## Security
+## Security and deployment boundary
 
-- No passwords or session cookies are collected.
-- No undocumented Meta endpoints or private GraphQL operations.
-- No CAPTCHA or rate-limit bypass.
-- No paid provider is silently selected.
-- Existing client configuration files are backed up before modification.
-- Jobs and generated assets are stored locally.
+- The MCP server uses local STDIO. It is a single-user developer tool, not an authenticated multi-tenant service or a public network daemon.
+- ComfyUI is restricted to loopback by default because its local API is normally unauthenticated. Remote ComfyUI requires `OPENVIBES_ALLOW_REMOTE_COMFYUI=true` and an HTTPS URL; the remote server must still be protected by your own network and authentication controls.
+- Expensive generations share a per-process FIFO limit of two active and four queued jobs. Excess work is rejected instead of creating unbounded GPU, memory, disk or provider spend pressure.
+- Provider option objects and HTTP response bodies are bounded. Generated files are written atomically, and existing files are not overwritten.
+- API keys are read from environment variables, are not written into MCP client configuration, and are not returned by diagnostics.
+- User prompts, downloaded provider responses and custom ComfyUI workflows are untrusted data. Install only trusted ComfyUI custom nodes and review imported workflows before executing them.
+- No passwords or session cookies are collected; no undocumented Meta endpoints, CAPTCHA bypass, quota evasion or hidden paid fallback is permitted.
+
+Read the [system design](docs/SYSTEM-DESIGN.md), [threat model](docs/THREAT-MODEL.md), [production readiness review](docs/PRODUCTION-READINESS-REVIEW.md), and [security policy](docs/SECURITY.md) before operating this project in a sensitive environment.
 
 ## License
 

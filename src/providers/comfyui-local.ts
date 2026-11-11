@@ -3,6 +3,7 @@ import path from 'node:path';
 import { createHash, randomInt, randomUUID } from 'node:crypto';
 import { safeAssetPath, writeFileAtomic } from '../services/assets.js';
 import { readResponseBuffer, readResponseJson, readResponseText } from '../services/http.js';
+import { normalizeComfyUiUrl } from '../services/comfyui-url.js';
 
 export interface ComfyOutput {
   filename: string;
@@ -44,14 +45,11 @@ export class ComfyUiLocalProvider {
   constructor(
     baseUrl = process.env.COMFYUI_URL ?? 'http://127.0.0.1:8188',
     outputDir = process.env.OPENVIBES_OUTPUT_DIR ?? path.join(process.cwd(), 'generated'),
+    allowRemote = process.env.OPENVIBES_ALLOW_REMOTE_COMFYUI === 'true',
   ) {
     this.outputDir = path.resolve(outputDir);
     try {
-      const url = new URL(baseUrl);
-      if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) {
-        throw new Error('INVALID_COMFYUI_URL');
-      }
-      this.baseUrl = url.toString().replace(/\/$/, '');
+      this.baseUrl = normalizeComfyUiUrl(baseUrl, allowRemote);
       this.configurationError = undefined;
     } catch {
       this.baseUrl = '';
@@ -190,13 +188,17 @@ export class ComfyUiLocalProvider {
 
   async cancel(promptId: string): Promise<{ cancelled: boolean; action: string }> {
     if (!/^[a-zA-Z0-9-]{8,80}$/.test(promptId)) throw new Error('INVALID_PROMPT_ID');
-    const queue = await this.request('/queue').then((response) => response.json()) as {
+    const queue = await this.request('/queue').then((response) => readResponseJson<{
       queue_running?: unknown[][];
       queue_pending?: unknown[][];
-    };
+    }>(response, 4 * 1024 * 1024, 'COMFYUI_QUEUE_RESPONSE'));
     const running = (queue.queue_running ?? []).some((entry) => entry[1] === promptId);
     if (running) {
-      await this.request('/interrupt', { method: 'POST' });
+      await this.request('/interrupt', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ prompt_id: promptId }),
+      });
       return { cancelled: true, action: 'interrupted_running_job' };
     }
     const pending = (queue.queue_pending ?? []).some((entry) => entry[1] === promptId);
@@ -243,7 +245,7 @@ export class ComfyUiLocalProvider {
         filename: file.filename, subfolder: file.subfolder ?? '', type: file.type ?? 'output',
       });
       const response = await this.request(`/view?${query.toString()}`, undefined, 120_000);
-      const bytes = await readResponseBuffer(response, 512 * 1024 * 1024, 'COMFYUI_MEDIA');
+      const bytes = await readResponseBuffer(response, 256 * 1024 * 1024, 'COMFYUI_MEDIA');
       if (!bytes.length) throw new Error('COMFYUI_EMPTY_MEDIA_OUTPUT');
       await fs.mkdir(path.dirname(target), { recursive: true, mode: 0o700 });
 

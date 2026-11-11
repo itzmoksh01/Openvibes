@@ -28,6 +28,8 @@ Set these environment variables for the Openvibes MCP process:
 ```bash
 COMFYUI_URL=http://127.0.0.1:8188
 OPENVIBES_OUTPUT_DIR=./generated
+# Leave unset/false for loopback. Remote endpoints require HTTPS and explicit opt-in.
+OPENVIBES_ALLOW_REMOTE_COMFYUI=false
 ```
 
 Restart the MCP server. Call `openvibes_comfy_server_info` to verify the local engine is reachable. For a basic text-to-image run, call `openvibes_comfy_list_checkpoints`, choose an installed checkpoint, then call `openvibes_comfy_generate_image` with your prompt and checkpoint name. This uses ComfyUI's standard CheckpointLoaderSimple, CLIPTextEncode, KSampler, VAEDecode and SaveImage nodes. For video, image-to-video, or custom graphs, call `openvibes_comfy_run_workflow` with the complete API-format workflow JSON. Openvibes queues the job and records its ID. The initial tool call waits up to 30 seconds by default; if the job is still running, it returns a persistent job ID. The agent should then call `openvibes_wait_for_job` repeatedly until the state is `SAVED`; that tool downloads the outputs and records the assets automatically.

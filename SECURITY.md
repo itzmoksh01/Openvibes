@@ -18,3 +18,13 @@ Include the affected commit/component, reproducible steps, impact, and suggested
 - Generated files use unique names and restrictive file permissions where supported.
 - Provider outputs and user-supplied workflows are untrusted input.
 - Do not bypass authentication, CAPTCHA, rate limits, paid entitlements, or provider access controls.
+
+## Runtime trust boundaries
+
+Openvibes is a local STDIO MCP server. The operating-system user and the MCP host process are the security boundary; this project does not implement remote-user authentication, tenant isolation, or a network-facing HTTP listener. Do not wrap it in a public service without adding authentication, authorization, tenant isolation, per-tenant quotas, and isolated storage.
+
+The ComfyUI API is unauthenticated by default. Openvibes therefore accepts loopback URLs only unless `OPENVIBES_ALLOW_REMOTE_COMFYUI=true` is explicitly set. Remote endpoints must use HTTPS. This opt-in does not add authentication to ComfyUI; protect the remote endpoint independently.
+
+Generation admission is bounded to two active and four waiting tasks per MCP process. This is not a global rate limit or a provider billing cap. Provider-side account budgets remain authoritative.
+
+See [the threat model](docs/THREAT-MODEL.md) and [system design](docs/SYSTEM-DESIGN.md) for assets, trust boundaries, mitigations, and residual risks.

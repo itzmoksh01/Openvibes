@@ -1,4 +1,4 @@
-import { randomInt } from 'node:crypto';
+import { createHash, randomInt } from 'node:crypto';
 import { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { getConfig } from './config.js';
@@ -9,6 +9,7 @@ import { PollinationsProvider } from './providers/pollinations.js';
 import { CloudflareWorkersAiProvider } from './providers/cloudflare-workers-ai.js';
 import { optimizePrompt } from './services/prompt-engine.js';
 import { diagnose } from './services/diagnostics.js';
+import { GenerationLimiter } from './services/concurrency.js';
 import type { JobKind } from './types.js';
 
 const config = getConfig();
@@ -18,9 +19,16 @@ const comfy = new ComfyUiLocalProvider(process.env.COMFYUI_URL ?? 'http://127.0.
 const pollinations = new PollinationsProvider(process.env.OPENVIBES_POLLINATIONS_API_KEY, config.outputDir);
 const cloudflare = new CloudflareWorkersAiProvider(process.env.CLOUDFLARE_ACCOUNT_ID, process.env.CLOUDFLARE_API_TOKEN, config.outputDir);
 const server = new McpServer({ name: 'openvibes', version: '0.3.0' });
+// Bound provider spend, local GPU occupancy, memory use and concurrent downloads.
+const generationLimiter = new GenerationLimiter(2, 4);
 const text = (value: unknown) => ({
   content: [{ type: 'text' as const, text: JSON.stringify(value, null, 2) ?? String(value) }],
 });
+
+const providerOptionsSchema = z.record(
+  z.string().regex(/^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/),
+  z.union([z.string().max(2048), z.number().finite().min(-1_000_000).max(1_000_000), z.boolean()]),
+).refine((value) => Object.keys(value).length <= 32, 'At most 32 provider options are allowed');
 
 const generationSchema = z.object({
   prompt: z.string().min(1).max(10_000),
@@ -93,13 +101,25 @@ async function runComfyWorkflow(
   workflow: Record<string, unknown>,
   timeoutSeconds: number,
 ) {
+  return generationLimiter.run(async () => {
+  const workflowJson = JSON.stringify(workflow);
+  if (typeof workflowJson !== 'string') throw new Error('WORKFLOW_SERIALIZATION_FAILED');
+  if (Buffer.byteLength(workflowJson, 'utf8') > 10 * 1024 * 1024) {
+    throw new Error('WORKFLOW_TOO_LARGE');
+  }
+  const workflowMetadata = {
+    workflowNodeCount: Object.keys(workflow).length,
+    workflowSha256: createHash('sha256').update(workflowJson).digest('hex'),
+  };
   const job = store.createJob({
     kind,
     state: 'SUBMITTING',
     provider: comfy.id,
     prompt,
     optimizedPrompt: optimizePrompt(kind, { prompt }),
-    input: { workflow },
+    // Workflows can embed third-party credentials or private paths. A hash and node count
+    // are enough for correlation; never persist the full user-supplied graph in job history.
+    input: workflowMetadata,
   });
 
   let promptId: string | undefined;
@@ -147,6 +167,7 @@ async function runComfyWorkflow(
         : 'Check the ComfyUI console, installed models, and workflow node errors.',
     });
   }
+  });
 }
 
 server.registerTool(
@@ -218,7 +239,7 @@ server.registerTool(
   },
   async ({ prompt, model }) => {
     try {
-      return text({ success: true, provider: cloudflare.id, model, result: await cloudflare.generateText(prompt, model) });
+      return text({ success: true, provider: cloudflare.id, model, result: await generationLimiter.run(() => cloudflare.generateText(prompt, model)) });
     } catch (error) {
       return text({ success: false, provider: cloudflare.id, error: error instanceof Error ? error.message : String(error) });
     }
@@ -231,7 +252,7 @@ server.registerTool(
     inputSchema: z.object({
       text: z.string().min(1).max(10000),
       model: z.string().min(1).max(200).default('@cf/deepgram/aura-1'),
-      options: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
+      options: providerOptionsSchema.optional(),
     }),
   },
   async ({ text: speechText, model, options }) => {
@@ -239,7 +260,7 @@ server.registerTool(
     try {
       const job = store.createJob({ kind: 'audio', state: 'SUBMITTING', provider: cloudflare.id, prompt: speechText, optimizedPrompt: speechText, input: { model, options: options ?? {} } });
       jobId = job.id;
-      const output = await cloudflare.generateAudio(speechText, model, options ?? {});
+      const output = await generationLimiter.run(() => cloudflare.generateAudio(speechText, model, options ?? {}));
       const asset = store.addAsset({ jobId, filename: output.filename, mimeType: output.mimeType, sizeBytes: output.sizeBytes, sha256: output.sha256, path: output.path, metadata: { model, provider: cloudflare.id } });
       store.updateJob(jobId, 'SAVED', { output, asset, model });
       return text({ success: true, state: 'SAVED', jobId, provider: cloudflare.id, model, output, asset });
@@ -258,7 +279,7 @@ server.registerTool(
     inputSchema: z.object({
       prompt: z.string().min(1).max(2048),
       model: z.string().min(1).max(200).default('@cf/black-forest-labs/flux-1-schnell'),
-      options: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
+      options: providerOptionsSchema.optional(),
     }),
   },
   async ({ prompt, model, options }) => {
@@ -266,7 +287,7 @@ server.registerTool(
     try {
       const job = store.createJob({ kind: 'image', state: 'SUBMITTING', provider: cloudflare.id, prompt, optimizedPrompt: prompt, input: { model, options: options ?? {} } });
       jobId = job.id;
-      const output = await cloudflare.generateImage(prompt, model, options ?? {});
+      const output = await generationLimiter.run(() => cloudflare.generateImage(prompt, model, options ?? {}));
       const asset = store.addAsset({ jobId, filename: output.filename, mimeType: output.mimeType, sizeBytes: output.sizeBytes, sha256: output.sha256, path: output.path, metadata: { model, provider: cloudflare.id } });
       store.updateJob(jobId, 'SAVED', { output, asset, model });
       return text({ success: true, state: 'SAVED', jobId, provider: cloudflare.id, model, output, asset });
@@ -300,7 +321,7 @@ server.registerTool(
   },
   async ({ prompt, model }) => {
     try {
-      return text({ success: true, provider: pollinations.id, model, result: await pollinations.generateText(prompt, model) });
+      return text({ success: true, provider: pollinations.id, model, result: await generationLimiter.run(() => pollinations.generateText(prompt, model)) });
     } catch (error) {
       return text({ success: false, provider: pollinations.id, error: error instanceof Error ? error.message : String(error) });
     }
@@ -314,7 +335,7 @@ server.registerTool(
       kind: z.enum(['image', 'video', 'audio']),
       prompt: z.string().min(1).max(10000),
       model: z.string().min(1).max(200),
-      options: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
+      options: providerOptionsSchema.optional(),
     }),
   },
   async ({ kind, prompt, model, options }) => {
@@ -329,7 +350,7 @@ server.registerTool(
         input: { model, options: options ?? {} },
       });
       jobId = job.id;
-      const output = await pollinations.generateMedia(kind, prompt, model, options ?? {});
+      const output = await generationLimiter.run(() => pollinations.generateMedia(kind, prompt, model, options ?? {}));
       const asset = store.addAsset({
         jobId,
         filename: output.filename,
@@ -442,7 +463,13 @@ server.registerTool(
     description: 'Run an API-format ComfyUI workflow on the local machine. Supports compatible image, video and image-to-video graphs; waits, downloads media into OPENVIBES_OUTPUT_DIR, and records job/assets. Requires a running local ComfyUI and compatible models/custom nodes.',
     inputSchema: workflowSchema,
   },
-  async (input) => runComfyWorkflow(input.kind, input.prompt, input.workflow, input.timeout_seconds),
+  async (input) => {
+    try {
+      return await runComfyWorkflow(input.kind, input.prompt, input.workflow, input.timeout_seconds);
+    } catch (error) {
+      return text({ success: false, error: error instanceof Error ? error.message : String(error) });
+    }
+  },
 );
 
 server.registerTool(

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import process from 'node:process';
 import type { OpenvibesConfig } from '../config.js';
+import { normalizeComfyUiUrl } from './comfyui-url.js';
 
 function directoryStatus(directory: string): { writable: boolean; error?: string } {
   try {
@@ -28,8 +29,11 @@ export function diagnose(config: OpenvibesConfig, env: NodeJS.ProcessEnv = proce
   const cloudflareTokenPresent = Boolean(env.CLOUDFLARE_API_TOKEN?.trim());
   let comfyUrlValid = false;
   try {
-    const url = new URL(env.COMFYUI_URL ?? 'http://127.0.0.1:8188');
-    comfyUrlValid = ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password;
+    normalizeComfyUiUrl(
+      env.COMFYUI_URL ?? 'http://127.0.0.1:8188',
+      env.OPENVIBES_ALLOW_REMOTE_COMFYUI === 'true',
+    );
+    comfyUrlValid = true;
   } catch {
     comfyUrlValid = false;
   }
@@ -75,6 +79,7 @@ export function diagnose(config: OpenvibesConfig, env: NodeJS.ProcessEnv = proce
         id: 'comfyui-local',
         status: comfyUrlValid ? 'CONFIGURED_NOT_CONNECTED' : 'INVALID_URL',
         urlValid: comfyUrlValid,
+        remoteAccessOptIn: env.OPENVIBES_ALLOW_REMOTE_COMFYUI === 'true',
         networkChecked: false,
       },
     },

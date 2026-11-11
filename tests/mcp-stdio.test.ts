@@ -221,6 +221,50 @@ test('built MCP server initializes, lists tools and completes a local ComfyUI im
     assert.equal(recoveryPayload.jobId, interruptedJob.id);
     assert.equal(recoveryPayload.outputs?.[0]?.mimeType, 'image/png');
     assert.deepEqual(await readFile(recoveryPayload.outputs?.[0]?.path ?? ''), imageBytes);
+
+    // Custom workflows can contain third-party credential fields or private paths.
+    // Persist only a stable hash and node count, never the raw graph.
+    const workflowResponse = readLine(reader, 20_000);
+    child.stdin.write(JSON.stringify({
+      jsonrpc: '2.0',
+      id: 5,
+      method: 'tools/call',
+      params: {
+        name: 'openvibes_comfy_run_workflow',
+        arguments: {
+          workflow: {
+            '1': { class_type: 'TestNode', inputs: { api_key: 'workflow-secret-must-not-be-stored' } },
+          },
+          prompt: 'Workflow metadata privacy test',
+          kind: 'image',
+          timeout_seconds: 10,
+        },
+      },
+    }) + '\n');
+    const workflowCall = JSON.parse(await workflowResponse) as {
+      id?: number;
+      result?: { isError?: boolean; content?: Array<{ type: string; text?: string }> };
+      error?: unknown;
+    };
+    assert.equal(workflowCall.id, 5);
+    assert.equal(workflowCall.error, undefined);
+    assert.notEqual(workflowCall.result?.isError, true);
+    const workflowText = workflowCall.result?.content?.find((item) => item.type === 'text')?.text;
+    assert.ok(workflowText);
+    const workflowResult = JSON.parse(workflowText) as { success?: boolean; jobId?: string };
+    assert.equal(workflowResult.success, true);
+    assert.ok(workflowResult.jobId);
+    const verifyStore = new Store(path.join(dataDir, 'openvibes.sqlite'));
+    try {
+      const persisted = verifyStore.getJob(workflowResult.jobId!);
+      assert.ok(persisted);
+      assert.equal(persisted.inputJson.includes('workflow-secret-must-not-be-stored'), false);
+      const metadata = JSON.parse(persisted.inputJson) as { workflowNodeCount?: number; workflowSha256?: string };
+      assert.equal(metadata.workflowNodeCount, 1);
+      assert.match(metadata.workflowSha256 ?? '', /^[a-f0-9]{64}$/);
+    } finally {
+      verifyStore.close();
+    }
   } finally {
     reader.close();
     if (child.exitCode === null && child.signalCode === null) {

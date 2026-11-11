@@ -7,3 +7,20 @@ Report vulnerabilities privately through GitHub Security Advisories when enabled
 Openvibes must not implement undocumented provider endpoints, cookie replay, CAPTCHA bypass, quota evasion, or hidden paid fallback. Local databases and generated media may contain sensitive content; protect the user's filesystem and backups.
 
 The ComfyUI endpoint is configurable through COMFYUI_URL. By default it is localhost. Only point it at a ComfyUI instance you control or are authorized to use. Do not expose an unauthenticated ComfyUI server to the public internet. Openvibes does not add authentication to a ComfyUI instance.
+
+## ComfyUI endpoint policy
+
+The default ComfyUI endpoint must resolve syntactically to loopback (`localhost`, IPv4 127/8, or IPv6 ::1). Other hosts are rejected by default. To intentionally use a remote endpoint, set both:
+
+```bash
+COMFYUI_URL=https://your-trusted-comfy-host.example
+OPENVIBES_ALLOW_REMOTE_COMFYUI=true
+```
+
+Remote HTTP is rejected. This is an explicit trust decision, not authentication: ComfyUI itself must be protected by a trusted VPN/private network, access gateway, firewall, and appropriate server-side controls. Never expose an unauthenticated ComfyUI API directly to the public internet.
+
+## Resource controls
+
+The server allows at most two active generation calls and four waiting calls per process. Further work receives `GENERATION_CAPACITY_EXCEEDED`. This protects a single MCP process from unbounded concurrent requests; it does not coordinate multiple MCP processes or cap provider spend.
+
+Prompts and local job metadata are stored in SQLite; generated output is stored on disk. They are not encrypted by Openvibes. Use OS account protections and encrypted disks/backups for sensitive content.

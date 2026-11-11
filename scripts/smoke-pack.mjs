@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
-import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 
 const root = process.cwd();
-const temporary = await mkdtemp(path.join(os.tmpdir(), 'openvibes package smoke '));
+const temporary = await mkdtemp(path.join(os.tmpdir(), 'openvibes-package-smoke-'));
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const runNpm = (args) => execFileSync(npm, args, {
   cwd: root,
@@ -59,6 +59,8 @@ async function verifyMuseSetup(entrypoint, directory) {
     HOME: home,
     USERPROFILE: home,
     XDG_CONFIG_HOME: xdg,
+    COMFYUI_URL: 'http://127.0.0.1:8188',
+    OPENVIBES_ALLOW_REMOTE_COMFYUI: 'true',
     APPDATA: path.join(directory, 'isolated-appdata'),
     OPENVIBES_DATA_DIR: path.join(directory, 'setup-data'),
     OPENVIBES_OUTPUT_DIR: path.join(directory, 'setup-generated'),
@@ -81,8 +83,9 @@ async function verifyMuseSetup(entrypoint, directory) {
   assert.equal(config.mcp_servers.openvibes.transport, 'stdio');
   assert.equal(config.mcp_servers.openvibes.enabled, true);
   assert.equal(config.mcp_servers.openvibes.mode, 'optional');
+  assert.equal(config.mcp_servers.openvibes.env.OPENVIBES_ALLOW_REMOTE_COMFYUI, 'true');
   assert.equal(config.mcp_servers.openvibes.args[1], 'mcp');
-  assert.ok(config.mcp_servers.openvibes.args[0].includes('openvibes package smoke '), 'MCP entrypoint path containing spaces must be preserved');
+  assert.ok(config.mcp_servers.openvibes.args[0].includes('runtime path with spaces'), 'MCP entrypoint path containing spaces must be preserved');
   const serialized = JSON.stringify(config);
   assert.equal(serialized.includes('must-not-be-written-to-client-config'), false);
   const backups = (await readdir(path.dirname(settings))).filter(name => name.includes('.openvibes-backup-'));
@@ -186,12 +189,22 @@ try {
   const packed = JSON.parse(runNpm(['pack', '--json', '--pack-destination', temporary]));
   const filename = packed[0]?.filename;
   assert.equal(typeof filename, 'string', 'npm pack must produce a tarball');
+  const packedPaths = new Set((packed[0]?.files ?? []).map((file) => file.path));
+  assert.ok(packedPaths.has('dist/src/index.js'), 'runtime entrypoint must be in the published package');
+  assert.equal([...packedPaths].some((file) => file.startsWith('dist/tests/')), false, 'compiled test files must not ship in the runtime package');
   const tarball = path.join(temporary, filename);
   const installDirectory = path.join(temporary, 'install');
   runNpm(['install', '--prefix', installDirectory, '--ignore-scripts', '--no-audit', '--no-fund', tarball]);
 
+  // Keep npm staging/install paths free of spaces on Windows, where npm.cmd
+  // arguments are interpreted by cmd.exe. Copy the installed package into a
+  // spaced runtime path to test the paths written into client configuration.
   const packageRoot = path.join(installDirectory, 'node_modules', 'openvibes-mcp');
-  const entrypoint = path.join(packageRoot, 'dist', 'src', 'index.js');
+  const runtimeDirectory = path.join(temporary, 'runtime path with spaces');
+  const runtimePackage = path.join(runtimeDirectory, 'installed package');
+  await mkdir(runtimeDirectory, { recursive: true });
+  await cp(packageRoot, runtimePackage, { recursive: true });
+  const entrypoint = path.join(runtimePackage, 'dist', 'src', 'index.js');
   const output = execFileSync(process.execPath, [entrypoint, '--help'], {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -199,9 +212,9 @@ try {
   });
   assert.match(output, /Openvibes CLI/);
   assert.match(output, /openvibes setup/);
-  await verifyMuseSetup(entrypoint, temporary);
-  await verifyMuseSetupRejectsUnsafeConfig(entrypoint, temporary);
-  await verifyPackagedMcp(entrypoint, temporary);
+  await verifyMuseSetup(entrypoint, runtimeDirectory);
+  await verifyMuseSetupRejectsUnsafeConfig(entrypoint, runtimeDirectory);
+  await verifyPackagedMcp(entrypoint, runtimeDirectory);
   process.stdout.write('Package smoke test passed: tarball installed, CLI executed, MCP initialized and tools listed.\n');
 } finally {
   await rm(temporary, { recursive: true, force: true });

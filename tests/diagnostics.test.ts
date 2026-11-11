@@ -49,3 +49,25 @@ test('doctor rejects an invalid ComfyUI URL without making a network request', a
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+
+test('doctor blocks remote unauthenticated ComfyUI endpoints unless HTTPS opt-in is explicit', async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'openvibes-doctor-remote-'));
+  const config = {
+    dataDir: path.join(directory, 'data'),
+    outputDir: path.join(directory, 'generated'),
+    databasePath: path.join(directory, 'data', 'openvibes.sqlite'),
+  };
+  try {
+    const blocked = diagnose(config, { COMFYUI_URL: 'http://192.168.1.20:8188' });
+    assert.equal(blocked.providers.comfyUiLocal.status, 'INVALID_URL');
+    const allowed = diagnose(config, {
+      COMFYUI_URL: 'https://comfy.example.com',
+      OPENVIBES_ALLOW_REMOTE_COMFYUI: 'true',
+    });
+    assert.equal(allowed.providers.comfyUiLocal.status, 'CONFIGURED_NOT_CONNECTED');
+    assert.equal(allowed.providers.comfyUiLocal.remoteAccessOptIn, true);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});

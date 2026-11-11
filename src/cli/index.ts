@@ -2,11 +2,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { spawnSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { getConfig } from '../config.js';
 import { Store } from '../database/store.js';
 import { diagnose } from '../services/diagnostics.js';
 
-const usage = "Openvibes CLI\n\nCommands:\n  openvibes setup [--client auto|all|muse|antigravity|codex|claude|zed]\n  openvibes status\n  openvibes doctor\n  openvibes jobs\n  openvibes assets\n  openvibes mcp\n  openvibes auth login\n  openvibes uninstall\n\nEnvironment:\n  COMFYUI_URL             Local ComfyUI base URL\n  OPENVIBES_DATA_DIR      Persistent jobs/assets database directory\n  OPENVIBES_OUTPUT_DIR    Generated media directory\n  OPENVIBES_POLLINATIONS_API_KEY  Optional user-owned hosted inference key (keep secret)\n  CLOUDFLARE_ACCOUNT_ID     Cloudflare Workers AI account ID\n  CLOUDFLARE_API_TOKEN      Cloudflare Workers AI API token (keep secret)\n";
+const usage = "Openvibes CLI\n\nCommands:\n  openvibes setup [--client auto|all|muse|antigravity|codex|claude|zed]\n  openvibes status\n  openvibes doctor\n  openvibes jobs\n  openvibes assets\n  openvibes mcp\n  openvibes auth login\n  openvibes uninstall\n\nEnvironment:\n  COMFYUI_URL             Local ComfyUI base URL (loopback by default)\n  OPENVIBES_ALLOW_REMOTE_COMFYUI  Set true only for a trusted HTTPS ComfyUI endpoint\n  OPENVIBES_DATA_DIR      Persistent jobs/assets database directory\n  OPENVIBES_OUTPUT_DIR    Generated media directory\n  OPENVIBES_POLLINATIONS_API_KEY  Optional user-owned hosted inference key (keep secret)\n  CLOUDFLARE_ACCOUNT_ID     Cloudflare Workers AI account ID\n  CLOUDFLARE_API_TOKEN      Cloudflare Workers AI API token (keep secret)\n";
 
 type JsonObject = Record<string, unknown>;
 
@@ -88,12 +89,26 @@ function writeJsonConfig(
 
   let backup: string | undefined;
   if (existed) {
-    backup = filePath + '.openvibes-backup-' + new Date().toISOString().replace(/[:.]/g, '-');
+    backup = filePath + '.openvibes-backup-' + new Date().toISOString().replace(/[:.]/g, '-') + '-' + randomUUID();
     fs.copyFileSync(filePath, backup);
   }
-  const temporary = filePath + '.openvibes-' + process.pid + '.tmp';
-  fs.writeFileSync(temporary, JSON.stringify(config, null, 2) + '\n', { mode: 0o600 });
-  fs.renameSync(temporary, filePath);
+  const temporary = filePath + '.openvibes-' + randomUUID() + '.tmp';
+  let descriptor: number | undefined;
+  try {
+    // Exclusive creation prevents following a pre-created symlink at the temp path.
+    descriptor = fs.openSync(temporary, 'wx', 0o600);
+    fs.writeFileSync(descriptor, JSON.stringify(config, null, 2) + '\n', 'utf8');
+    fs.fsyncSync(descriptor);
+    fs.closeSync(descriptor);
+    descriptor = undefined;
+    fs.renameSync(temporary, filePath);
+  } catch (error) {
+    if (descriptor !== undefined) {
+      try { fs.closeSync(descriptor); } catch { /* preserve original error */ }
+    }
+    try { fs.rmSync(temporary, { force: true }); } catch { /* preserve original error */ }
+    throw error;
+  }
   return { path: filePath, ...(backup ? { backup } : {}), alreadyConfigured: false };
 }
 
@@ -102,6 +117,9 @@ function clientEnvironment(config: ReturnType<typeof getConfig>): Record<string,
     COMFYUI_URL: process.env.COMFYUI_URL ?? 'http://127.0.0.1:8188',
     OPENVIBES_DATA_DIR: config.dataDir,
     OPENVIBES_OUTPUT_DIR: config.outputDir,
+    ...(process.env.OPENVIBES_ALLOW_REMOTE_COMFYUI === 'true'
+      ? { OPENVIBES_ALLOW_REMOTE_COMFYUI: 'true' }
+      : {}),
   };
 }
 

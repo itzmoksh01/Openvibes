@@ -89,6 +89,32 @@ test('cancel removes a queued ComfyUI job by its prompt ID', async () => {
   }
 });
 
+
+test('running ComfyUI cancellation sends a targeted prompt ID instead of a global interrupt', async () => {
+  const originalFetch = globalThis.fetch;
+  let interruptBody: { prompt_id?: string } | undefined;
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = input instanceof URL ? input : new URL(typeof input === 'string' ? input : input.url);
+    if (url.pathname === '/queue' && init?.method !== 'POST') {
+      return json({ queue_running: [[1, promptId, {}, {}, []]], queue_pending: [] });
+    }
+    if (url.pathname === '/interrupt' && init?.method === 'POST') {
+      interruptBody = JSON.parse(String(init.body)) as { prompt_id?: string };
+      return json({});
+    }
+    return new Response('not found', { status: 404 });
+  }) as typeof fetch;
+
+  try {
+    const provider = new ComfyUiLocalProvider();
+    const result = await provider.cancel(promptId);
+    assert.deepEqual(result, { cancelled: true, action: 'interrupted_running_job' });
+    assert.deepEqual(interruptBody, { prompt_id: promptId });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('rejects unsafe ComfyUI URLs and unsafe output paths', () => {
   assert.equal(new ComfyUiLocalProvider('file:///etc/passwd').configurationError, 'INVALID_COMFYUI_URL');
   assert.equal(new ComfyUiLocalProvider('http://user:pass@127.0.0.1:8188').configurationError, 'INVALID_COMFYUI_URL');
