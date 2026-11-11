@@ -21,6 +21,9 @@ A green unit-test suite is necessary but is not sufficient for a production rele
 - [x] Asset filename, metadata and path-traversal validation have automated tests.
 - [x] Introduce SQLite schema version 1, adopt existing version-zero databases safely, and reject databases created by a newer schema version.
 - [ ] Validate every job-state transition and recover or safely fail interrupted jobs after process restart.
+  - [x] Lifecycle transitions are checked transactionally; tests cover valid resume transitions and prevention of rewrites after a terminal `SAVED` state.
+  - [x] MCP integration test proves a persisted ComfyUI job with a saved prompt ID can be resumed after a fresh server process starts.
+  - [ ] A crash before the provider ID is persisted (or during a synchronous hosted request) remains an ambiguous outcome and requires provider-side inspection; automatic resubmission is intentionally disabled.
 - [x] Automated tests cover missing credentials, malformed JSON, oversized responses, invalid ComfyUI URLs, and queued-job cancellation.
 - [ ] Add provider rate-limit and timeout tests plus interrupted/partial media-download recovery tests.
 

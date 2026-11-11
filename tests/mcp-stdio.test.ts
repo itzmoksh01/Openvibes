@@ -8,6 +8,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { Store } from '../src/database/store.js';
 
 function readLine(reader: ReturnType<typeof createInterface>, timeoutMs = 10_000): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -27,6 +28,19 @@ test('built MCP server initializes, lists tools and completes a local ComfyUI im
   const directory = await mkdtemp(path.join(tmpdir(), 'openvibes-mcp-smoke-'));
   const imageBytes = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 1, 3, 3, 7]);
   const promptId = 'openvibes-smoke-1234';
+  const recoveryPromptId = 'openvibes-recover-1234';
+  const dataDir = path.join(directory, 'data');
+  const seedStore = new Store(path.join(dataDir, 'openvibes.sqlite'));
+  const interruptedJob = seedStore.createJob({
+    kind: 'image',
+    state: 'DOWNLOADING',
+    provider: 'comfyui-local',
+    prompt: 'Resume this persisted image job',
+    optimizedPrompt: 'Resume this persisted image job',
+    input: { workflow: { test: true } },
+  });
+  seedStore.updateJob(interruptedJob.id, 'DOWNLOADING', { promptId: recoveryPromptId });
+  seedStore.close();
   const mockComfy = createServer((request, response) => {
     response.setHeader('content-type', 'application/json');
     if (request.method === 'GET' && request.url === '/models/checkpoints') {
@@ -37,13 +51,18 @@ test('built MCP server initializes, lists tools and completes a local ComfyUI im
       response.end(JSON.stringify({ prompt_id: promptId, number: 1 }));
       return;
     }
-    if (request.method === 'GET' && request.url === '/history/' + promptId) {
+    if (request.method === 'GET' && (
+      request.url === '/history/' + promptId ||
+      request.url === '/history/' + recoveryPromptId
+    )) {
+      const currentPromptId = request.url === '/history/' + recoveryPromptId ? recoveryPromptId : promptId;
+      const filename = currentPromptId === recoveryPromptId ? 'openvibes-recovered.png' : 'openvibes-smoke.png';
       response.end(JSON.stringify({
-        [promptId]: {
+        [currentPromptId]: {
           status: { completed: true, status_str: 'success' },
           outputs: {
             '7': {
-              images: [{ filename: 'openvibes-smoke.png', subfolder: '', type: 'output' }],
+              images: [{ filename, subfolder: '', type: 'output' }],
             },
           },
         },
@@ -72,7 +91,7 @@ test('built MCP server initializes, lists tools and completes a local ComfyUI im
     env: {
       ...process.env,
       COMFYUI_URL: 'http://127.0.0.1:' + address.port,
-      OPENVIBES_DATA_DIR: path.join(directory, 'data'),
+      OPENVIBES_DATA_DIR: dataDir,
       OPENVIBES_OUTPUT_DIR: path.join(directory, 'generated'),
     },
     stdio: ['pipe', 'pipe', 'pipe'],
@@ -167,6 +186,41 @@ test('built MCP server initializes, lists tools and completes a local ComfyUI im
     assert.equal(payload.assets?.length, 1);
     assert.match(payload.assets?.[0]?.sha256 ?? '', /^[a-f0-9]{64}$/);
     assert.deepEqual(await readFile(payload.outputs?.[0]?.path ?? ''), imageBytes);
+
+    // This record was persisted by an earlier process. The new MCP process must
+    // continue from the saved ComfyUI prompt ID instead of submitting a duplicate job.
+    const recoveryResponse = readLine(reader, 20_000);
+    child.stdin.write(JSON.stringify({
+      jsonrpc: '2.0',
+      id: 4,
+      method: 'tools/call',
+      params: {
+        name: 'openvibes_wait_for_job',
+        arguments: { job_id: interruptedJob.id, timeout_seconds: 10 },
+      },
+    }) + '\n');
+
+    const recovered = JSON.parse(await recoveryResponse) as {
+      id?: number;
+      result?: { isError?: boolean; content?: Array<{ type: string; text?: string }> };
+      error?: unknown;
+    };
+    assert.equal(recovered.id, 4);
+    assert.equal(recovered.error, undefined);
+    assert.notEqual(recovered.result?.isError, true);
+    const recoveryText = recovered.result?.content?.find((item) => item.type === 'text')?.text;
+    assert.ok(recoveryText);
+    const recoveryPayload = JSON.parse(recoveryText) as {
+      success?: boolean;
+      state?: string;
+      jobId?: string;
+      outputs?: Array<{ path: string; mimeType: string }>;
+    };
+    assert.equal(recoveryPayload.success, true);
+    assert.equal(recoveryPayload.state, 'SAVED');
+    assert.equal(recoveryPayload.jobId, interruptedJob.id);
+    assert.equal(recoveryPayload.outputs?.[0]?.mimeType, 'image/png');
+    assert.deepEqual(await readFile(recoveryPayload.outputs?.[0]?.path ?? ''), imageBytes);
   } finally {
     reader.close();
     if (child.exitCode === null && child.signalCode === null) {

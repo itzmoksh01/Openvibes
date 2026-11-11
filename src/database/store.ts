@@ -4,6 +4,23 @@ import { DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
 import type { AssetRecord, JobKind, JobRecord, JobState } from '../types.js';
 
+const allowedJobTransitions: Record<JobState, ReadonlySet<JobState>> = {
+  QUEUED: new Set<JobState>(['QUEUED', 'VALIDATING', 'FAILED', 'CANCELLED', 'BLOCKED']),
+  VALIDATING: new Set<JobState>(['VALIDATING', 'AUTHENTICATING', 'SUBMITTING', 'FAILED', 'CANCELLED', 'BLOCKED', 'RATE_LIMITED']),
+  AUTHENTICATING: new Set<JobState>(['AUTHENTICATING', 'SUBMITTING', 'FAILED', 'CANCELLED', 'BLOCKED', 'RATE_LIMITED']),
+  SUBMITTING: new Set<JobState>(['SUBMITTING', 'SUBMITTED', 'PROCESSING', 'COMPLETED', 'DOWNLOADING', 'VERIFYING', 'SAVED', 'FAILED', 'CANCELLED', 'RATE_LIMITED', 'BLOCKED']),
+  SUBMITTED: new Set<JobState>(['SUBMITTED', 'PROCESSING', 'COMPLETED', 'DOWNLOADING', 'VERIFYING', 'SAVED', 'FAILED', 'CANCELLED', 'RATE_LIMITED']),
+  PROCESSING: new Set<JobState>(['PROCESSING', 'COMPLETED', 'DOWNLOADING', 'VERIFYING', 'SAVED', 'FAILED', 'CANCELLED', 'RATE_LIMITED']),
+  COMPLETED: new Set<JobState>(['COMPLETED', 'DOWNLOADING', 'VERIFYING', 'SAVED', 'FAILED']),
+  DOWNLOADING: new Set<JobState>(['DOWNLOADING', 'PROCESSING', 'VERIFYING', 'SAVED', 'FAILED', 'CANCELLED']),
+  VERIFYING: new Set<JobState>(['VERIFYING', 'SAVED', 'FAILED']),
+  SAVED: new Set<JobState>(['SAVED']),
+  FAILED: new Set<JobState>(['FAILED']),
+  CANCELLED: new Set<JobState>(['CANCELLED']),
+  RATE_LIMITED: new Set<JobState>(['RATE_LIMITED', 'SUBMITTING', 'FAILED', 'CANCELLED']),
+  BLOCKED: new Set<JobState>(['BLOCKED']),
+};
+
 export class Store {
   private readonly db: DatabaseSync;
 
@@ -105,17 +122,41 @@ export class Store {
     errorCode?: string,
     errorMessage?: string,
   ): void {
-    const result = this.db.prepare(
-      'UPDATE jobs SET state=?,output_json=COALESCE(?,output_json),error_code=?,error_message=?,updated_at=? WHERE id=?',
-    ).run(
-      state,
-      output === undefined ? null : (JSON.stringify(output) ?? 'null'),
-      errorCode ?? null,
-      errorMessage ?? null,
-      new Date().toISOString(),
-      id,
-    );
-    if (Number(result.changes) !== 1) throw new Error('JOB_NOT_FOUND: ' + id);
+    const serializedOutput = output === undefined ? null : (JSON.stringify(output) ?? 'null');
+
+    // Check and update the state under one write lock so concurrent MCP processes
+    // cannot both validate a transition against the same stale state.
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      const current = this.db.prepare('SELECT state FROM jobs WHERE id=?').get(id) as { state?: unknown } | undefined;
+      if (!current) throw new Error('JOB_NOT_FOUND: ' + id);
+
+      const currentState = String(current.state) as JobState;
+      if (!allowedJobTransitions[currentState]?.has(state)) {
+        throw new Error('JOB_STATE_TRANSITION_NOT_ALLOWED: ' + currentState + ' -> ' + state);
+      }
+
+      const result = this.db.prepare(
+        'UPDATE jobs SET state=?,output_json=COALESCE(?,output_json),error_code=?,error_message=?,updated_at=? WHERE id=? AND state=?',
+      ).run(
+        state,
+        serializedOutput,
+        errorCode ?? null,
+        errorMessage ?? null,
+        new Date().toISOString(),
+        id,
+        currentState,
+      );
+      if (Number(result.changes) !== 1) throw new Error('JOB_STATE_CONFLICT: ' + id);
+      this.db.exec('COMMIT');
+    } catch (error) {
+      try {
+        this.db.exec('ROLLBACK');
+      } catch {
+        // Preserve the original transition or database error.
+      }
+      throw error;
+    }
   }
 
   addAsset(input: {

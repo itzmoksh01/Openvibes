@@ -125,3 +125,34 @@ test('SQLite refuses to open a database created by a newer schema version', asyn
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+
+test('SQLite enforces safe job-state transitions and protects terminal jobs', async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'openvibes-store-states-'));
+  const store = new Store(path.join(directory, 'openvibes.sqlite'));
+  try {
+    const job = store.createJob({
+      kind: 'image',
+      state: 'SUBMITTED',
+      provider: 'comfyui-local',
+      prompt: 'restart recovery',
+      optimizedPrompt: 'restart recovery',
+      input: { promptId: 'openvibes-recover-1234' },
+    });
+
+    store.updateJob(job.id, 'PROCESSING', { promptId: 'openvibes-recover-1234' });
+    store.updateJob(job.id, 'PROCESSING', { promptId: 'openvibes-recover-1234', retry: 1 });
+    store.updateJob(job.id, 'DOWNLOADING', { promptId: 'openvibes-recover-1234' });
+    store.updateJob(job.id, 'SAVED', { promptId: 'openvibes-recover-1234', outputs: [] });
+
+    assert.equal(store.getJob(job.id)?.state, 'SAVED');
+    assert.throws(
+      () => store.updateJob(job.id, 'FAILED', { error: 'late failure' }),
+      /JOB_STATE_TRANSITION_NOT_ALLOWED: SAVED -> FAILED/,
+    );
+    assert.equal(store.getJob(job.id)?.state, 'SAVED');
+  } finally {
+    store.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
