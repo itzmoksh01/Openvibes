@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { Store } from '../src/database/store.js';
 
 test('SQLite job and asset records persist across Store restarts', async () => {
@@ -75,7 +76,6 @@ test('SQLite rejects missing jobs and invalid asset metadata', async () => {
 test('SQLite adopts an existing version-zero database as schema version one', async () => {
   const directory = await mkdtemp(path.join(tmpdir(), 'openvibes-store-migration-'));
   const databasePath = path.join(directory, 'legacy.sqlite');
-  const { DatabaseSync } = await import('node:sqlite');
   const legacy = new DatabaseSync(databasePath);
   legacy.exec(`
     CREATE TABLE jobs (
@@ -95,12 +95,16 @@ test('SQLite adopts an existing version-zero database as schema version one', as
   let store: Store | undefined;
   try {
     store = new Store(databasePath);
-    const version = store['db'].prepare('PRAGMA user_version').get() as { user_version: number };
-    assert.equal(version.user_version, 1);
     store.close();
     store = new Store(databasePath);
-    const reopened = store['db'].prepare('PRAGMA user_version').get() as { user_version: number };
-    assert.equal(reopened.user_version, 1);
+    store.close();
+    const verify = new DatabaseSync(databasePath);
+    try {
+      const version = verify.prepare('PRAGMA user_version').get() as { user_version: number };
+      assert.equal(version.user_version, 1);
+    } finally {
+      verify.close();
+    }
   } finally {
     store?.close();
     await rm(directory, { recursive: true, force: true });
@@ -110,7 +114,6 @@ test('SQLite adopts an existing version-zero database as schema version one', as
 test('SQLite refuses to open a database created by a newer schema version', async () => {
   const directory = await mkdtemp(path.join(tmpdir(), 'openvibes-store-newer-'));
   const databasePath = path.join(directory, 'future.sqlite');
-  const { DatabaseSync } = await import('node:sqlite');
   const future = new DatabaseSync(databasePath);
   future.exec('PRAGMA user_version=999');
   future.close();
