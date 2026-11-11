@@ -7,7 +7,7 @@ import { getConfig } from '../config.js';
 import { Store } from '../database/store.js';
 import { diagnose } from '../services/diagnostics.js';
 
-const usage = "Openvibes CLI\n\nCommands:\n  openvibes setup [--client auto|all|muse|antigravity|codex|claude|zed]\n  openvibes status\n  openvibes doctor\n  openvibes jobs\n  openvibes assets\n  openvibes usage\n  openvibes cleanup --older-than-days N [--yes]\n  openvibes mcp\n  openvibes auth login\n  openvibes uninstall\n\nEnvironment:\n  COMFYUI_URL             Local ComfyUI base URL (loopback by default)\n  OPENVIBES_ALLOW_REMOTE_COMFYUI  Set true only for a trusted HTTPS ComfyUI endpoint\n  OPENVIBES_DATA_DIR      Persistent jobs/assets database directory\n  OPENVIBES_OUTPUT_DIR    Generated media directory\n  OPENVIBES_POLLINATIONS_API_KEY  Optional user-owned hosted inference key (keep secret)\n  CLOUDFLARE_ACCOUNT_ID     Cloudflare Workers AI account ID\n  CLOUDFLARE_API_TOKEN      Cloudflare Workers AI API token (keep secret)\n  OPENVIBES_DAILY_CLOUDFLARE_LIMIT  Daily Cloudflare cap (default 20; 0 = unlimited)\n  OPENVIBES_DAILY_POLLINATIONS_LIMIT Daily Pollinations cap (default 20; 0 = unlimited)\n  OPENVIBES_DAILY_COMFYUI_LIMIT     Daily ComfyUI cap (default 0 = unlimited)\n";
+const usage = "Openvibes CLI\n\nCommands:\n  openvibes setup [--client auto|all|muse|antigravity|codex|claude|zed]\n  openvibes status\n  openvibes doctor\n  openvibes jobs\n  openvibes assets\n  openvibes usage\n  openvibes audit [--limit N]\n  openvibes cleanup --older-than-days N [--yes]\n  openvibes mcp\n  openvibes auth login\n  openvibes uninstall\n\nEnvironment:\n  COMFYUI_URL             Local ComfyUI base URL (loopback by default)\n  OPENVIBES_ALLOW_REMOTE_COMFYUI  Set true only for a trusted HTTPS ComfyUI endpoint\n  OPENVIBES_DATA_DIR      Persistent jobs/assets database directory\n  OPENVIBES_OUTPUT_DIR    Generated media directory\n  OPENVIBES_POLLINATIONS_API_KEY  Optional user-owned hosted inference key (keep secret)\n  CLOUDFLARE_ACCOUNT_ID     Cloudflare Workers AI account ID\n  CLOUDFLARE_API_TOKEN      Cloudflare Workers AI API token (keep secret)\n  OPENVIBES_DAILY_CLOUDFLARE_LIMIT  Daily Cloudflare cap (default 20; 0 = unlimited)\n  OPENVIBES_DAILY_POLLINATIONS_LIMIT Daily Pollinations cap (default 20; 0 = unlimited)\n  OPENVIBES_DAILY_COMFYUI_LIMIT     Daily ComfyUI cap (default 0 = unlimited)\n";
 
 type JsonObject = Record<string, unknown>;
 
@@ -271,9 +271,22 @@ export async function runCli(args: string[]): Promise<void> {
           'pollinations-hosted': store.getDailyUsage('pollinations-hosted', config.dailyLimits.pollinations),
           'comfyui-local': store.getDailyUsage('comfyui-local', config.dailyLimits.comfyui),
         },
+        sharedGenerationSlots: store.getGenerationSlotUsage(2),
         note: 'Request counts are not dollar-spend estimates; provider-side budgets still apply.',
       }, null, 2) + '\n');
     } finally { store.close(); }
+    return;
+  }
+  if (command === 'audit') {
+    const index = args.indexOf('--limit');
+    const limit = index >= 0 ? Number(args[index + 1]) : 50;
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 200) {
+      process.stderr.write('Usage: openvibes audit [--limit N] (N must be 1..200).\n');
+      process.exitCode = 2; return;
+    }
+    const store = new Store(config.databasePath);
+    try { process.stdout.write(JSON.stringify(store.listAuditEvents(limit), null, 2) + '\n'); }
+    finally { store.close(); }
     return;
   }
   if (command === 'cleanup') {
@@ -289,7 +302,7 @@ export async function runCli(args: string[]): Promise<void> {
     try {
       const preview = store.previewExpiredDataBefore(cutoff);
       if (!args.includes('--yes')) {
-        process.stdout.write(JSON.stringify({ dryRun: true, cutoff, olderThanDays: days, jobsThatWouldBeDeleted: preview.jobs, assetsThatWouldBeDeleted: preview.assets, note: 'Nothing deleted. Add --yes to permanently delete old records and eligible media under OPENVIBES_OUTPUT_DIR.' }, null, 2) + '\n');
+        process.stdout.write(JSON.stringify({ dryRun: true, cutoff, olderThanDays: days, jobsThatWouldBeDeleted: preview.jobs, assetsThatWouldBeDeleted: preview.assets, auditEventsThatWouldBeDeleted: preview.auditEvents, note: 'Nothing deleted. Add --yes to permanently delete old records and eligible media under OPENVIBES_OUTPUT_DIR.' }, null, 2) + '\n');
         return;
       }
       const result = store.deleteExpiredDataBefore(cutoff);
@@ -321,7 +334,7 @@ export async function runCli(args: string[]): Promise<void> {
           else fileErrors.push(resolved + ': ' + (error instanceof Error ? error.message : String(error)));
         }
       }
-      process.stdout.write(JSON.stringify({ dryRun: false, cutoff, olderThanDays: days, jobsDeleted: result.jobsDeleted, assetsDeleted: result.assetsDeleted, filesDeleted, filesMissing, filesSkippedOutsideOutputDir, fileErrors }, null, 2) + '\n');
+      process.stdout.write(JSON.stringify({ dryRun: false, cutoff, olderThanDays: days, jobsDeleted: result.jobsDeleted, assetsDeleted: result.assetsDeleted, auditEventsDeleted: result.auditEventsDeleted, filesDeleted, filesMissing, filesSkippedOutsideOutputDir, fileErrors }, null, 2) + '\n');
       if (fileErrors.length > 0) process.exitCode = 1;
     } finally { store.close(); }
     return;

@@ -31,9 +31,9 @@ export class Store {
     this.db.exec('PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON; PRAGMA synchronous=NORMAL;');
     const currentVersionRow = this.db.prepare('PRAGMA user_version').get() as { user_version?: number };
     const currentVersion = Number(currentVersionRow.user_version ?? 0);
-    if (currentVersion > 2) {
+    if (currentVersion > 3) {
       this.db.close();
-      throw new Error(`DATABASE_SCHEMA_TOO_NEW: database version ${currentVersion} is newer than supported version 2.`);
+      throw new Error(`DATABASE_SCHEMA_TOO_NEW: database version ${currentVersion} is newer than supported version 3.`);
     }
     this.db.exec('BEGIN IMMEDIATE');
     try {
@@ -74,7 +74,16 @@ export class Store {
         PRIMARY KEY(provider, usage_date)
       );
       CREATE INDEX IF NOT EXISTS idx_provider_usage_date ON provider_usage(usage_date);
-      PRAGMA user_version=2;
+      CREATE TABLE IF NOT EXISTS generation_leases (
+        token TEXT PRIMARY KEY, expires_at TEXT NOT NULL, created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_generation_leases_expiry ON generation_leases(expires_at);
+      CREATE TABLE IF NOT EXISTS audit_events (
+        id TEXT PRIMARY KEY, event_type TEXT NOT NULL, entity_type TEXT NOT NULL,
+        entity_id TEXT NOT NULL, provider TEXT, details_json TEXT NOT NULL, created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_audit_events_created ON audit_events(created_at DESC);
+      PRAGMA user_version=3;
       `);
       this.db.exec('COMMIT');
     } catch (error) {
@@ -114,12 +123,20 @@ export class Store {
       createdAt: now,
       updatedAt: now,
     };
-    this.db.prepare(
-      'INSERT INTO jobs(id,kind,state,provider,prompt,optimized_prompt,input_json,output_json,error_code,error_message,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
-    ).run(
-      row.id, row.kind, row.state, row.provider, row.prompt, row.optimizedPrompt,
-      row.inputJson, row.outputJson, row.errorCode, row.errorMessage, row.createdAt, row.updatedAt,
-    );
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      this.db.prepare(
+        'INSERT INTO jobs(id,kind,state,provider,prompt,optimized_prompt,input_json,output_json,error_code,error_message,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
+      ).run(
+        row.id, row.kind, row.state, row.provider, row.prompt, row.optimizedPrompt,
+        row.inputJson, row.outputJson, row.errorCode, row.errorMessage, row.createdAt, row.updatedAt,
+      );
+      this.writeAuditEvent('job.created', 'job', row.id, row.provider, { kind: row.kind, state: row.state }, now);
+      this.db.exec('COMMIT');
+    } catch (error) {
+      try { this.db.exec('ROLLBACK'); } catch { /* Preserve the original error. */ }
+      throw error;
+    }
     return row;
   }
 
@@ -156,6 +173,9 @@ export class Store {
         currentState,
       );
       if (Number(result.changes) !== 1) throw new Error('JOB_STATE_CONFLICT: ' + id);
+      this.writeAuditEvent('job.state_changed', 'job', id, undefined, {
+        from: currentState, to: state, ...(errorCode ? { errorCode } : {}),
+      });
       this.db.exec('COMMIT');
     } catch (error) {
       try {
@@ -205,12 +225,23 @@ export class Store {
       metadataJson: JSON.stringify(input.metadata ?? {}) ?? '{}',
       createdAt: new Date().toISOString(),
     };
-    this.db.prepare(
-      'INSERT INTO assets(id,job_id,filename,mime_type,size_bytes,sha256,path,metadata_json,created_at) VALUES(?,?,?,?,?,?,?,?,?)',
-    ).run(
-      row.id, row.jobId, row.filename, row.mimeType, row.sizeBytes,
-      row.sha256, row.path, row.metadataJson, row.createdAt,
-    );
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      this.db.prepare(
+        'INSERT INTO assets(id,job_id,filename,mime_type,size_bytes,sha256,path,metadata_json,created_at) VALUES(?,?,?,?,?,?,?,?,?)',
+      ).run(
+        row.id, row.jobId, row.filename, row.mimeType, row.sizeBytes,
+        row.sha256, row.path, row.metadataJson, row.createdAt,
+      );
+      this.writeAuditEvent('asset.saved', 'asset', row.id, undefined, {
+        jobId: row.jobId, filename: row.filename, mimeType: row.mimeType,
+        sizeBytes: row.sizeBytes, sha256: row.sha256,
+      }, row.createdAt);
+      this.db.exec('COMMIT');
+    } catch (error) {
+      try { this.db.exec('ROLLBACK'); } catch { /* Preserve the original error. */ }
+      throw error;
+    }
     return row;
   }
 
@@ -265,6 +296,7 @@ export class Store {
         'INSERT INTO provider_usage(provider, usage_date, used, updated_at) VALUES(?,?,?,?) ' +
         'ON CONFLICT(provider, usage_date) DO UPDATE SET used=excluded.used, updated_at=excluded.updated_at',
       ).run(provider, date, nextUsed, new Date().toISOString());
+      this.writeAuditEvent('provider.request_reserved', 'provider', provider, provider, { date, used: nextUsed, limit });
       this.db.exec('COMMIT');
       return { provider, date, used: nextUsed, limit, remaining: limit === 0 ? null : Math.max(0, limit - nextUsed), unlimited: limit === 0 };
     } catch (error) {
@@ -280,7 +312,9 @@ export class Store {
     const assets = this.db.prepare(
       'SELECT COUNT(*) AS count FROM assets WHERE job_id IN (SELECT id FROM jobs WHERE created_at < ?)',
     ).get(cutoffIso) as { count?: number };
-    return { jobs: Number(jobs.count ?? 0), assets: Number(assets.count ?? 0) };
+    const auditEvents = this.db.prepare('SELECT COUNT(*) AS count FROM audit_events WHERE created_at < ?')
+      .get(cutoffIso) as { count?: number };
+    return { jobs: Number(jobs.count ?? 0), assets: Number(assets.count ?? 0), auditEvents: Number(auditEvents.count ?? 0) };
   }
 
   deleteExpiredDataBefore(cutoffIso: string) {
@@ -294,12 +328,91 @@ export class Store {
         'DELETE FROM assets WHERE job_id IN (SELECT id FROM jobs WHERE created_at < ?)',
       ).run(cutoffIso);
       const jobResult = this.db.prepare('DELETE FROM jobs WHERE created_at < ?').run(cutoffIso);
+      const auditResult = this.db.prepare('DELETE FROM audit_events WHERE created_at < ?').run(cutoffIso);
       this.db.exec('COMMIT');
-      return { jobsDeleted: Number(jobResult.changes), assetsDeleted: Number(assetResult.changes), assetPaths: assets.map(row => String(row.path)) };
+      return { jobsDeleted: Number(jobResult.changes), assetsDeleted: Number(assetResult.changes), auditEventsDeleted: Number(auditResult.changes), assetPaths: assets.map(row => String(row.path)) };
     } catch (error) {
       try { this.db.exec('ROLLBACK'); } catch { /* Preserve the original error. */ }
       throw error;
     }
+  }
+
+  acquireGenerationLease(maxConcurrent: number, leaseMs: number, at = new Date()): string | null {
+    if (!Number.isSafeInteger(maxConcurrent) || maxConcurrent < 1 || maxConcurrent > 100) throw new Error('INVALID_GENERATION_SLOT_LIMIT');
+    if (!Number.isSafeInteger(leaseMs) || leaseMs < 1_000 || leaseMs > 3_600_000) throw new Error('INVALID_GENERATION_LEASE');
+    if (Number.isNaN(at.getTime())) throw new Error('INVALID_GENERATION_LEASE_DATE');
+    const now = at.toISOString();
+    const expiresAt = new Date(at.getTime() + leaseMs).toISOString();
+    const token = randomUUID();
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      this.db.prepare('DELETE FROM generation_leases WHERE expires_at <= ?').run(now);
+      const row = this.db.prepare('SELECT COUNT(*) AS count FROM generation_leases').get() as { count?: number };
+      if (Number(row.count ?? 0) >= maxConcurrent) {
+        this.db.exec('COMMIT');
+        return null;
+      }
+      this.db.prepare('INSERT INTO generation_leases(token, expires_at, created_at) VALUES(?,?,?)')
+        .run(token, expiresAt, now);
+      this.writeAuditEvent('generation.slot_acquired', 'generation-slot', token, undefined, { maxConcurrent, expiresAt }, now);
+      this.db.exec('COMMIT');
+      return token;
+    } catch (error) {
+      try { this.db.exec('ROLLBACK'); } catch { /* Preserve the original error. */ }
+      throw error;
+    }
+  }
+
+  renewGenerationLease(token: string, leaseMs: number, at = new Date()): boolean {
+    if (!Number.isSafeInteger(leaseMs) || leaseMs < 1_000 || leaseMs > 3_600_000) throw new Error('INVALID_GENERATION_LEASE');
+    if (Number.isNaN(at.getTime())) throw new Error('INVALID_GENERATION_LEASE_DATE');
+    const result = this.db.prepare('UPDATE generation_leases SET expires_at=? WHERE token=? AND expires_at>?')
+      .run(new Date(at.getTime() + leaseMs).toISOString(), token, at.toISOString());
+    return Number(result.changes) === 1;
+  }
+
+  releaseGenerationLease(token: string): void {
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      const result = this.db.prepare('DELETE FROM generation_leases WHERE token=?').run(token);
+      if (Number(result.changes) === 1) this.writeAuditEvent('generation.slot_released', 'generation-slot', token, undefined, {});
+      this.db.exec('COMMIT');
+    } catch (error) {
+      try { this.db.exec('ROLLBACK'); } catch { /* Preserve the original error. */ }
+      throw error;
+    }
+  }
+
+  getGenerationSlotUsage(maxConcurrent: number, at = new Date()) {
+    if (!Number.isSafeInteger(maxConcurrent) || maxConcurrent < 1) throw new Error('INVALID_GENERATION_SLOT_LIMIT');
+    const row = this.db.prepare('SELECT COUNT(*) AS count FROM generation_leases WHERE expires_at>?')
+      .get(at.toISOString()) as { count?: number };
+    const active = Number(row.count ?? 0);
+    return { active, limit: maxConcurrent, available: Math.max(0, maxConcurrent - active) };
+  }
+
+  listAuditEvents(limit = 50): Array<{
+    id: string; eventType: string; entityType: string; entityId: string;
+    provider: string | null; detailsJson: string; createdAt: string;
+  }> {
+    const bounded = Math.min(Math.max(Math.trunc(limit), 1), 200);
+    const rows = this.db.prepare('SELECT * FROM audit_events ORDER BY created_at DESC LIMIT ?')
+      .all(bounded) as Array<Record<string, unknown>>;
+    return rows.map(row => ({
+      id: String(row.id), eventType: String(row.event_type),
+      entityType: String(row.entity_type), entityId: String(row.entity_id),
+      provider: row.provider == null ? null : String(row.provider),
+      detailsJson: String(row.details_json), createdAt: String(row.created_at),
+    }));
+  }
+
+  private writeAuditEvent(
+    eventType: string, entityType: string, entityId: string, provider: string | undefined,
+    details: Record<string, unknown>, createdAt = new Date().toISOString(),
+  ): void {
+    // This trail intentionally excludes prompts, credentials, workflow graphs and local paths.
+    this.db.prepare('INSERT INTO audit_events(id,event_type,entity_type,entity_id,provider,details_json,created_at) VALUES(?,?,?,?,?,?,?)')
+      .run(randomUUID(), eventType, entityType, entityId, provider ?? null, JSON.stringify(details) ?? '{}', createdAt);
   }
 
   close(): void {

@@ -103,7 +103,7 @@ test('SQLite adopts an existing version-zero database as schema version two', as
     const verify = new DatabaseSync(databasePath);
     try {
       const version = verify.prepare('PRAGMA user_version').get() as { user_version: number };
-      assert.equal(version.user_version, 2);
+      assert.equal(version.user_version, 3);
     } finally {
       verify.close();
     }
@@ -194,5 +194,47 @@ test('expired job and asset rows can be previewed and deleted transactionally', 
     const result = store.deleteExpiredDataBefore(cutoff);
     assert.equal(result.jobsDeleted, 1); assert.equal(result.assetsDeleted, 1);
     assert.equal(result.assetPaths.length, 1); assert.equal(store.getJob(job.id), undefined);
+  } finally { store.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
+
+test('SQLite shared generation leases cap concurrent Store instances and renew/expire', async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'openvibes-leases-'));
+  const dbPath = path.join(directory, 'openvibes.sqlite');
+  const first = new Store(dbPath), second = new Store(dbPath), third = new Store(dbPath);
+  const now = new Date('2026-11-11T12:00:00.000Z');
+  try {
+    const one = first.acquireGenerationLease(2, 60_000, now);
+    const two = second.acquireGenerationLease(2, 60_000, now);
+    assert.ok(one); assert.ok(two);
+    assert.equal(third.acquireGenerationLease(2, 60_000, now), null);
+    assert.deepEqual(third.getGenerationSlotUsage(2, now), { active: 2, limit: 2, available: 0 });
+    assert.equal(first.renewGenerationLease(one!, 60_000, new Date(now.getTime() + 30_000)), true);
+    first.releaseGenerationLease(one!);
+    assert.ok(third.acquireGenerationLease(2, 60_000, new Date(now.getTime() + 31_000)));
+    assert.equal(second.renewGenerationLease(two!, 60_000, new Date(now.getTime() + 61_000)), false);
+  } finally {
+    first.close(); second.close(); third.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('audit trail records job, asset and provider events without prompts or paths', async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'openvibes-audit-'));
+  const store = new Store(path.join(directory, 'openvibes.sqlite'));
+  try {
+    const job = store.createJob({ kind: 'image', state: 'SUBMITTING', provider: 'pollinations-hosted',
+      prompt: 'sensitive prompt must not be audited', optimizedPrompt: 'sensitive prompt must not be audited',
+      input: { token: 'private-value' } });
+    store.reserveDailyUsage('pollinations-hosted', 5);
+    store.updateJob(job.id, 'SAVED', { ok: true });
+    store.addAsset({ jobId: job.id, filename: 'generated.png', mimeType: 'image/png', sizeBytes: 10,
+      sha256: 'b'.repeat(64), path: path.join(directory, 'generated.png') });
+    const audit = JSON.stringify(store.listAuditEvents(50));
+    assert.match(audit, /job.created/); assert.match(audit, /job.state_changed/);
+    assert.match(audit, /provider.request_reserved/); assert.match(audit, /asset.saved/);
+    assert.equal(audit.includes('sensitive prompt must not be audited'), false);
+    assert.equal(audit.includes('private-value'), false);
+    assert.equal(audit.includes(directory), false);
   } finally { store.close(); await rm(directory, { recursive: true, force: true }); }
 });

@@ -21,6 +21,31 @@ const cloudflare = new CloudflareWorkersAiProvider(process.env.CLOUDFLARE_ACCOUN
 const server = new McpServer({ name: 'openvibes', version: '0.3.0' });
 // Bound active work per process; SQLite daily quotas are shared across processes using the same data directory.
 const generationLimiter = new GenerationLimiter(2, 4);
+const SHARED_GENERATION_SLOTS = 2;
+const GENERATION_LEASE_MS = 25 * 60_000;
+
+async function withSharedGenerationSlot<T>(operation: () => Promise<T>): Promise<T> {
+  return withSharedGenerationSlot(async () => {
+    const deadline = Date.now() + 60_000;
+    let token: string | null = null;
+    while (!token) {
+      token = store.acquireGenerationLease(SHARED_GENERATION_SLOTS, GENERATION_LEASE_MS);
+      if (token) break;
+      if (Date.now() >= deadline) throw new Error('GLOBAL_GENERATION_CAPACITY_EXCEEDED: shared slots are busy. Retry shortly.');
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    const heartbeat = setInterval(() => {
+      try { store.renewGenerationLease(token!, GENERATION_LEASE_MS); }
+      catch { /* Lease expiry remains the crash-recovery backstop. */ }
+    }, 60_000);
+    heartbeat.unref();
+    try { return await operation(); }
+    finally {
+      clearInterval(heartbeat);
+      store.releaseGenerationLease(token);
+    }
+  });
+}
 const text = (value: unknown) => ({
   content: [{ type: 'text' as const, text: JSON.stringify(value, null, 2) ?? String(value) }],
 });
@@ -216,6 +241,7 @@ server.registerTool(
       cloudflare: store.getDailyUsage(cloudflare.id, config.dailyLimits.cloudflare),
       pollinations: store.getDailyUsage(pollinations.id, config.dailyLimits.pollinations),
       comfyui: store.getDailyUsage(comfy.id, config.dailyLimits.comfyui),
+      sharedGenerationSlots: store.getGenerationSlotUsage(SHARED_GENERATION_SLOTS),
     },
     note: 'Failed provider calls also count. A limit of 0 means unlimited.',
   }),
@@ -256,7 +282,7 @@ server.registerTool(
   },
   async ({ prompt, model }) => {
     try {
-      const result = await generationLimiter.run(async () => {
+      const result = await withSharedGenerationSlot(async () => {
         store.reserveDailyUsage(cloudflare.id, config.dailyLimits.cloudflare);
         return cloudflare.generateText(prompt, model);
       });
@@ -281,7 +307,7 @@ server.registerTool(
     try {
       const job = store.createJob({ kind: 'audio', state: 'SUBMITTING', provider: cloudflare.id, prompt: speechText, optimizedPrompt: speechText, input: { model, options: options ?? {} } });
       jobId = job.id;
-      const output = await generationLimiter.run(async () => {
+      const output = await withSharedGenerationSlot(async () => {
         store.reserveDailyUsage(cloudflare.id, config.dailyLimits.cloudflare);
         return cloudflare.generateAudio(speechText, model, options ?? {});
       });
@@ -311,7 +337,7 @@ server.registerTool(
     try {
       const job = store.createJob({ kind: 'image', state: 'SUBMITTING', provider: cloudflare.id, prompt, optimizedPrompt: prompt, input: { model, options: options ?? {} } });
       jobId = job.id;
-      const output = await generationLimiter.run(async () => {
+      const output = await withSharedGenerationSlot(async () => {
         store.reserveDailyUsage(cloudflare.id, config.dailyLimits.cloudflare);
         return cloudflare.generateImage(prompt, model, options ?? {});
       });
@@ -348,7 +374,7 @@ server.registerTool(
   },
   async ({ prompt, model }) => {
     try {
-      const result = await generationLimiter.run(async () => {
+      const result = await withSharedGenerationSlot(async () => {
         store.reserveDailyUsage(pollinations.id, config.dailyLimits.pollinations);
         return pollinations.generateText(prompt, model);
       });
@@ -381,7 +407,7 @@ server.registerTool(
         input: { model, options: options ?? {} },
       });
       jobId = job.id;
-      const output = await generationLimiter.run(async () => {
+      const output = await withSharedGenerationSlot(async () => {
         store.reserveDailyUsage(pollinations.id, config.dailyLimits.pollinations);
         return pollinations.generateMedia(kind, prompt, model, options ?? {});
       });
@@ -623,6 +649,14 @@ server.registerTool(
       return text({ success: false, jobId: job_id, error: error instanceof Error ? error.message : String(error) });
     }
   },
+);
+server.registerTool(
+  'openvibes_list_audit_events',
+  {
+    description: 'List local structured audit events for jobs, assets, provider reservations and generation slots. Audit details exclude prompts, credentials, workflow bodies and paths; the log is not tamper-proof.',
+    inputSchema: z.object({ limit: z.number().int().min(1).max(200).default(50) }),
+  },
+  async ({ limit }) => text(store.listAuditEvents(limit)),
 );
 server.registerTool(
   'openvibes_list_jobs',
