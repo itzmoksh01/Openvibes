@@ -255,7 +255,9 @@ export async function runCli(args: string[]): Promise<void> {
   }
   if (command === 'setup') {
     try {
-      process.stdout.write(JSON.stringify(setupClients(args.slice(1), config), null, 2) + '\n');
+      const report = setupClients(args.slice(1), config);
+      process.stdout.write(JSON.stringify(report, null, 2) + '\n');
+      if (report.errors.length > 0) process.exitCode = 2;
     } catch (error) {
       process.stderr.write((error instanceof Error ? error.message : String(error)) + '\n');
       process.exitCode = 2;
