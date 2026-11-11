@@ -125,7 +125,7 @@ Comfy Cloud is a separate hosted service. Its official MCP docs currently advert
 
 Meta publicly describes Vibes as a consumer experience for creating AI videos and animating images. That description is not a developer API contract. Meta's separate Muse Image API is documented at **$0.01 per successfully generated image**; it is not the free Vibes entitlement and is not enabled as a fallback. See [Meta feasibility and evidence](docs/META-FEASIBILITY.md).
 
-Unofficial browser/session-cookie projects exist, but they are not Meta-supported integrations and may depend on private web internals or session extraction. Openvibes deliberately does not copy those approaches, collect passwords/cookies, bypass CAPTCHA, evade quotas, or use undocumented private endpoints.
+Unofficial browser/session-cookie projects exist, but they are not Meta-supported integrations and may depend on private web internals or session extraction. A generic persistent-browser MCP can preserve a login session, but it does not provide an authorized Vibes generation API; a Vibes-specific UI bot would still require separate authorization and would be fragile. Openvibes deliberately does not copy those approaches, collect passwords/cookies, bypass CAPTCHA, evade quotas, or use undocumented private endpoints. See [Meta Vibes automation research and integration decision](docs/META-VIBES-RESEARCH.md) for the repository review and recommended path.
 
 ## Development
 
