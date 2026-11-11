@@ -161,8 +161,9 @@ try {
   });
   assert.match(output, /Openvibes CLI/);
   assert.match(output, /openvibes setup/);
-  await verifyMuseSetup(entrypoint, temporary);\n  await verifyPackagedMcp(entrypoint, temporary);
-  process.stdout.write('Package smoke test passed: tarball installed, CLI executed, MCP initialized and tools listed.\\n');
+  await verifyMuseSetup(entrypoint, temporary);
+  await verifyPackagedMcp(entrypoint, temporary);
+  process.stdout.write('Package smoke test passed: tarball installed, CLI executed, MCP initialized and tools listed.\n');
 } finally {
   await rm(temporary, { recursive: true, force: true });
 }
