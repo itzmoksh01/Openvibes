@@ -12,7 +12,15 @@ export class Store {
     fs.mkdirSync(path.dirname(absolutePath), { recursive: true, mode: 0o700 });
     this.db = new DatabaseSync(absolutePath);
     this.db.exec('PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON; PRAGMA synchronous=NORMAL;');
-    this.db.exec(`
+    const currentVersionRow = this.db.prepare('PRAGMA user_version').get() as { user_version?: number };
+    const currentVersion = Number(currentVersionRow.user_version ?? 0);
+    if (currentVersion > 1) {
+      this.db.close();
+      throw new Error(`DATABASE_SCHEMA_TOO_NEW: database version ${currentVersion} is newer than supported version 1.`);
+    }
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      this.db.exec(`
       CREATE TABLE IF NOT EXISTS jobs (
         id TEXT PRIMARY KEY,
         kind TEXT NOT NULL,
@@ -41,7 +49,14 @@ export class Store {
         created_at TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_assets_created ON assets(created_at DESC);
-    `);
+      PRAGMA user_version=1;
+      `);
+      this.db.exec('COMMIT');
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      this.db.close();
+      throw error;
+    }
     try {
       fs.chmodSync(absolutePath, 0o600);
     } catch {
