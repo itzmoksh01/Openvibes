@@ -46,9 +46,11 @@ export async function writeFileAtomic(targetPath: string, bytes: Uint8Array): Pr
   const directory = path.dirname(target);
   const temporary = path.join(directory, '.openvibes-' + randomUUID() + '.tmp');
   let handle: FileHandle | undefined;
+  let temporaryCreated = false;
 
   try {
     handle = await fsp.open(temporary, 'wx', 0o600);
+    temporaryCreated = true;
     await handle.writeFile(bytes);
     await handle.sync();
     await handle.close();
@@ -59,6 +61,6 @@ export async function writeFileAtomic(targetPath: string, bytes: Uint8Array): Pr
     await fsp.link(temporary, target);
   } finally {
     if (handle) await handle.close().catch(() => undefined);
-    await fsp.unlink(temporary).catch(() => undefined);
+    if (temporaryCreated) await fsp.unlink(temporary).catch(() => undefined);
   }
 }
