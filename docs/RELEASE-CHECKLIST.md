@@ -19,10 +19,13 @@ A green unit-test suite is necessary but is not sufficient for a production rele
 - [x] MCP STDIO smoke test completes initialize, tools/list and a mocked ComfyUI image-generation/download flow without stdout contamination.
 - [x] SQLite job and asset records persist across a Store close/reopen cycle.
 - [x] Asset filename, metadata and path-traversal validation have automated tests.
-- [x] Introduce SQLite schema version 2, safely migrate version-zero and version-one databases, and reject databases created by a newer schema version.
+- [x] Introduce SQLite schema version 3, safely migrate earlier databases, and reject databases created by a newer schema version.
 - [x] Enforce shared UTC daily provider request quotas in SQLite and test cross-process reservation, exhaustion, and daily reset.
+- [x] Enforce two shared generation leases across processes using one SQLite file; stale leases expire and active leases renew.
+- [x] Record structured operational audit events without storing prompts, credentials, custom workflow bodies or filesystem paths.
 - [x] Provide a preview-first manual retention cleanup command; media deletion is restricted to real paths beneath the configured output directory.
-- [ ] Validate every job-state transition and recover or safely fail interrupted jobs after process restart.
+- [x] Validate persisted job-state transitions transactionally; recover ComfyUI jobs when a provider prompt ID was saved.
+  - [ ] An interrupted hosted request or crash before provider job ID persistence can remain ambiguous; do not automatically resubmit it.
   - [x] Lifecycle transitions are checked transactionally; tests cover valid resume transitions and prevention of rewrites after a terminal `SAVED` state.
   - [x] MCP integration test proves a persisted ComfyUI job with a saved prompt ID can be resumed after a fresh server process starts.
   - [ ] A crash before the provider ID is persisted (or during a synchronous hosted request) remains an ambiguous outcome and requires provider-side inspection; automatic resubmission is intentionally disabled.

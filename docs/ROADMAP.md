@@ -19,5 +19,9 @@
 - [ ] Real Meta generation tests if Meta authorizes a supported route.
 - [x] Shared SQLite UTC daily per-provider request quotas with usage reporting.
 - [x] Manual preview-first retention cleanup for job/asset records and eligible media.
+- [x] Shared SQLite generation leases across MCP processes using the same data directory.
+- [x] Structured local audit event listing through CLI and MCP tools.
 - [ ] MCP Inspector interactive test and live provider/ComfyUI/client acceptance tests.
+- [ ] OS keychain credential integration and application-level database/media encryption.
+- [ ] Verified provider-specific cost accounting and optional scheduled retention.
 - [ ] Verified npm publication and release automation.
