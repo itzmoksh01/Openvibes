@@ -201,7 +201,9 @@ try {
   // spaced runtime path to test the paths written into client configuration.
   const packageRoot = path.join(installDirectory, 'node_modules', 'openvibes-mcp');
   const runtimeDirectory = path.join(temporary, 'runtime path with spaces');
-  const runtimePackage = path.join(runtimeDirectory, 'installed package');
+  // Keep the copied package inside the install's node_modules tree so Node
+  // still resolves its production dependencies when launched from this path.
+  const runtimePackage = path.join(installDirectory, 'node_modules', 'openvibes runtime path with spaces');
   await mkdir(runtimeDirectory, { recursive: true });
   await cp(packageRoot, runtimePackage, { recursive: true });
   const entrypoint = path.join(runtimePackage, 'dist', 'src', 'index.js');
