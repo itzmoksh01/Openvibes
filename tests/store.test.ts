@@ -71,3 +71,52 @@ test('SQLite rejects missing jobs and invalid asset metadata', async () => {
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test('SQLite adopts an existing version-zero database as schema version one', async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'openvibes-store-migration-'));
+  const databasePath = path.join(directory, 'legacy.sqlite');
+  const { DatabaseSync } = await import('node:sqlite');
+  const legacy = new DatabaseSync(databasePath);
+  legacy.exec(`
+    CREATE TABLE jobs (
+      id TEXT PRIMARY KEY, kind TEXT NOT NULL, state TEXT NOT NULL,
+      provider TEXT NOT NULL, prompt TEXT NOT NULL, optimized_prompt TEXT NOT NULL,
+      input_json TEXT NOT NULL, output_json TEXT, error_code TEXT, error_message TEXT,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE TABLE assets (
+      id TEXT PRIMARY KEY, job_id TEXT NOT NULL REFERENCES jobs(id),
+      filename TEXT NOT NULL, mime_type TEXT NOT NULL, size_bytes INTEGER NOT NULL,
+      sha256 TEXT NOT NULL, path TEXT NOT NULL, metadata_json TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+  `);
+  legacy.close();
+  let store: Store | undefined;
+  try {
+    store = new Store(databasePath);
+    const version = store['db'].prepare('PRAGMA user_version').get() as { user_version: number };
+    assert.equal(version.user_version, 1);
+    store.close();
+    store = new Store(databasePath);
+    const reopened = store['db'].prepare('PRAGMA user_version').get() as { user_version: number };
+    assert.equal(reopened.user_version, 1);
+  } finally {
+    store?.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('SQLite refuses to open a database created by a newer schema version', async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'openvibes-store-newer-'));
+  const databasePath = path.join(directory, 'future.sqlite');
+  const { DatabaseSync } = await import('node:sqlite');
+  const future = new DatabaseSync(databasePath);
+  future.exec('PRAGMA user_version=999');
+  future.close();
+  try {
+    assert.throws(() => new Store(databasePath), /DATABASE_SCHEMA_TOO_NEW/);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
