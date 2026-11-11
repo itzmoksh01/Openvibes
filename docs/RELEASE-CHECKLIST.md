@@ -17,7 +17,10 @@ A green unit-test suite is necessary but is not sufficient for a production rele
 - [x] Node.js 24 passes type-check, build and tests on Linux.
 - [x] Windows, macOS and Linux pass the supported CI matrix.
 - [x] MCP STDIO smoke test completes initialize, tools/list and a mocked ComfyUI image-generation/download flow without stdout contamination.
-- [ ] SQLite persistence, migration/restart behavior, job state transitions and asset path validation pass.
+- [x] SQLite job and asset records persist across a Store close/reopen cycle.
+- [x] Asset filename, metadata and path-traversal validation have automated tests.
+- [ ] Add explicit versioned schema migrations and test upgrades from a prior released database.
+- [ ] Validate every job-state transition and recover or safely fail interrupted jobs after process restart.
 - [ ] Failure tests cover invalid credentials, rate limits, timeouts, malformed provider responses, cancellation and partial downloads.
 
 ## Live provider verification
@@ -36,7 +39,7 @@ Run only with a user-owned account and an explicit spend limit. Never place secr
 
 ## MCP host verification
 
-- [ ] Test the exact packaged binary from a clean install, not only the repository checkout.
+- [ ] Test the exact packaged binary from a clean install, including MCP initialize and tools/list (new smoke test added; awaiting CI verification).
 - [ ] Verify setup for Muse Code and each supported host claimed in documentation.
 - [ ] Verify config backup, merge behavior, idempotency, paths with spaces, and Windows paths.
 - [ ] Confirm credentials are inherited safely and never written to host config files.
