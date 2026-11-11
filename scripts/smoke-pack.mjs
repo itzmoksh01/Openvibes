@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
@@ -41,6 +41,61 @@ function readJsonLine(stream, timeoutMs = 10_000) {
     };
     stream.on('data', onData);
   });
+}
+
+async function verifyMuseSetup(entrypoint, directory) {
+  const home = path.join(directory, 'isolated-home');
+  const xdg = path.join(directory, 'isolated-xdg');
+  const settings = path.join(xdg, 'muse', 'settings.json');
+  await mkdir(path.dirname(settings), { recursive: true });
+  await writeFile(settings, JSON.stringify({
+    mcp_servers: { existing: { command: 'existing-tool', args: ['keep-me'] } },
+    preservedSetting: true,
+  }, null, 2));
+
+  const env = {
+    ...process.env,
+    HOME: home,
+    USERPROFILE: home,
+    XDG_CONFIG_HOME: xdg,
+    APPDATA: path.join(directory, 'isolated-appdata'),
+    OPENVIBES_DATA_DIR: path.join(directory, 'setup-data'),
+    OPENVIBES_OUTPUT_DIR: path.join(directory, 'setup-generated'),
+    CLOUDFLARE_ACCOUNT_ID: '0123456789abcdef0123456789abcdef',
+    CLOUDFLARE_API_TOKEN: 'must-not-be-written-to-client-config',
+    OPENVIBES_POLLINATIONS_API_KEY: 'must-not-be-written-to-client-config',
+  };
+  const setup = execFileSync(process.execPath, [entrypoint, 'setup', '--client', 'muse'], {
+    cwd: directory,
+    env,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    windowsHide: true,
+  });
+  const report = JSON.parse(setup);
+  assert.equal(report.errors.length, 0);
+  const config = JSON.parse(await readFile(settings, 'utf8'));
+  assert.equal(config.preservedSetting, true);
+  assert.deepEqual(config.mcp_servers.existing, { command: 'existing-tool', args: ['keep-me'] });
+  assert.equal(config.mcp_servers.openvibes.transport, 'stdio');
+  assert.equal(config.mcp_servers.openvibes.enabled, true);
+  assert.equal(config.mcp_servers.openvibes.mode, 'optional');
+  assert.equal(config.mcp_servers.openvibes.args[1], 'mcp');
+  const serialized = JSON.stringify(config);
+  assert.equal(serialized.includes('must-not-be-written-to-client-config'), false);
+  const backups = (await readdir(path.dirname(settings))).filter(name => name.includes('.openvibes-backup-'));
+  assert.equal(backups.length, 1);
+
+  const second = JSON.parse(execFileSync(process.execPath, [entrypoint, 'setup', '--client', 'muse'], {
+    cwd: directory,
+    env,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    windowsHide: true,
+  }));
+  assert.equal(second.configured[0]?.alreadyConfigured, true);
+  const backupsAfterSecondRun = (await readdir(path.dirname(settings))).filter(name => name.includes('.openvibes-backup-'));
+  assert.equal(backupsAfterSecondRun.length, 1);
 }
 
 async function verifyPackagedMcp(entrypoint, directory) {
@@ -106,7 +161,7 @@ try {
   });
   assert.match(output, /Openvibes CLI/);
   assert.match(output, /openvibes setup/);
-  await verifyPackagedMcp(entrypoint, temporary);
+  await verifyMuseSetup(entrypoint, temporary);\n  await verifyPackagedMcp(entrypoint, temporary);
   process.stdout.write('Package smoke test passed: tarball installed, CLI executed, MCP initialized and tools listed.\\n');
 } finally {
   await rm(temporary, { recursive: true, force: true });
