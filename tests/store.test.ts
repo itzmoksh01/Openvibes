@@ -96,8 +96,10 @@ test('SQLite adopts an existing version-zero database as schema version one', as
   try {
     store = new Store(databasePath);
     store.close();
+    store = undefined;
     store = new Store(databasePath);
     store.close();
+    store = undefined;
     const verify = new DatabaseSync(databasePath);
     try {
       const version = verify.prepare('PRAGMA user_version').get() as { user_version: number };
