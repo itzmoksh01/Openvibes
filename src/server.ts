@@ -19,7 +19,7 @@ const comfy = new ComfyUiLocalProvider(process.env.COMFYUI_URL ?? 'http://127.0.
 const pollinations = new PollinationsProvider(process.env.OPENVIBES_POLLINATIONS_API_KEY, config.outputDir);
 const cloudflare = new CloudflareWorkersAiProvider(process.env.CLOUDFLARE_ACCOUNT_ID, process.env.CLOUDFLARE_API_TOKEN, config.outputDir);
 const server = new McpServer({ name: 'openvibes', version: '0.3.0' });
-// Bound active work per process; SQLite daily quotas are shared by processes using the same data directory.
+// Bound provider spend, local GPU occupancy, memory use and concurrent downloads.
 const generationLimiter = new GenerationLimiter(2, 4);
 const text = (value: unknown) => ({
   content: [{ type: 'text' as const, text: JSON.stringify(value, null, 2) ?? String(value) }],
@@ -124,7 +124,6 @@ async function runComfyWorkflow(
 
   let promptId: string | undefined;
   try {
-    store.reserveDailyUsage(comfy.id, config.dailyLimits.comfyui);
     const submitted = await comfy.submit(workflow);
     promptId = submitted.promptId;
     store.updateJob(job.id, 'SUBMITTED', {
@@ -205,22 +204,6 @@ server.registerTool(
 );
 
 server.registerTool(
-  'openvibes_usage_status',
-  {
-    description: 'Show UTC daily request counts and configured per-provider request limits. Counters are shared by processes using the same SQLite data directory. These are not dollar-spend estimates.',
-    inputSchema: z.object({}),
-  },
-  async () => text({
-    timezone: 'UTC',
-    providers: {
-      cloudflare: store.getDailyUsage(cloudflare.id, config.dailyLimits.cloudflare),
-      pollinations: store.getDailyUsage(pollinations.id, config.dailyLimits.pollinations),
-      comfyui: store.getDailyUsage(comfy.id, config.dailyLimits.comfyui),
-    },
-    note: 'Failed provider calls also count. A limit of 0 means unlimited.',
-  }),
-);
-server.registerTool(
   'openvibes_generate_image',
   {
     description: 'DISABLED: This tool does not generate with Meta Vibes. It returns BLOCKED until Meta documents and authorizes an unattended API for ordinary free-plan accounts. No browser automation, private endpoint, copied cookie, or paid fallback is used.',
@@ -256,11 +239,7 @@ server.registerTool(
   },
   async ({ prompt, model }) => {
     try {
-      const result = await generationLimiter.run(async () => {
-        store.reserveDailyUsage(cloudflare.id, config.dailyLimits.cloudflare);
-        return cloudflare.generateText(prompt, model);
-      });
-      return text({ success: true, provider: cloudflare.id, model, result });
+      return text({ success: true, provider: cloudflare.id, model, result: await generationLimiter.run(() => cloudflare.generateText(prompt, model)) });
     } catch (error) {
       return text({ success: false, provider: cloudflare.id, error: error instanceof Error ? error.message : String(error) });
     }
@@ -281,10 +260,7 @@ server.registerTool(
     try {
       const job = store.createJob({ kind: 'audio', state: 'SUBMITTING', provider: cloudflare.id, prompt: speechText, optimizedPrompt: speechText, input: { model, options: options ?? {} } });
       jobId = job.id;
-      const output = await generationLimiter.run(async () => {
-        store.reserveDailyUsage(cloudflare.id, config.dailyLimits.cloudflare);
-        return cloudflare.generateAudio(speechText, model, options ?? {});
-      });
+      const output = await generationLimiter.run(() => cloudflare.generateAudio(speechText, model, options ?? {}));
       const asset = store.addAsset({ jobId, filename: output.filename, mimeType: output.mimeType, sizeBytes: output.sizeBytes, sha256: output.sha256, path: output.path, metadata: { model, provider: cloudflare.id } });
       store.updateJob(jobId, 'SAVED', { output, asset, model });
       return text({ success: true, state: 'SAVED', jobId, provider: cloudflare.id, model, output, asset });
@@ -311,10 +287,7 @@ server.registerTool(
     try {
       const job = store.createJob({ kind: 'image', state: 'SUBMITTING', provider: cloudflare.id, prompt, optimizedPrompt: prompt, input: { model, options: options ?? {} } });
       jobId = job.id;
-      const output = await generationLimiter.run(async () => {
-        store.reserveDailyUsage(cloudflare.id, config.dailyLimits.cloudflare);
-        return cloudflare.generateImage(prompt, model, options ?? {});
-      });
+      const output = await generationLimiter.run(() => cloudflare.generateImage(prompt, model, options ?? {}));
       const asset = store.addAsset({ jobId, filename: output.filename, mimeType: output.mimeType, sizeBytes: output.sizeBytes, sha256: output.sha256, path: output.path, metadata: { model, provider: cloudflare.id } });
       store.updateJob(jobId, 'SAVED', { output, asset, model });
       return text({ success: true, state: 'SAVED', jobId, provider: cloudflare.id, model, output, asset });
@@ -348,11 +321,7 @@ server.registerTool(
   },
   async ({ prompt, model }) => {
     try {
-      const result = await generationLimiter.run(async () => {
-        store.reserveDailyUsage(pollinations.id, config.dailyLimits.pollinations);
-        return pollinations.generateText(prompt, model);
-      });
-      return text({ success: true, provider: pollinations.id, model, result });
+      return text({ success: true, provider: pollinations.id, model, result: await generationLimiter.run(() => pollinations.generateText(prompt, model)) });
     } catch (error) {
       return text({ success: false, provider: pollinations.id, error: error instanceof Error ? error.message : String(error) });
     }
@@ -381,10 +350,7 @@ server.registerTool(
         input: { model, options: options ?? {} },
       });
       jobId = job.id;
-      const output = await generationLimiter.run(async () => {
-        store.reserveDailyUsage(pollinations.id, config.dailyLimits.pollinations);
-        return pollinations.generateMedia(kind, prompt, model, options ?? {});
-      });
+      const output = await generationLimiter.run(() => pollinations.generateMedia(kind, prompt, model, options ?? {}));
       const asset = store.addAsset({
         jobId,
         filename: output.filename,

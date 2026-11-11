@@ -83,13 +83,6 @@ export function diagnose(config: OpenvibesConfig, env: NodeJS.ProcessEnv = proce
         networkChecked: false,
       },
     },
-    usageLimits: {
-      timezone: 'UTC',
-      cloudflareDaily: config.dailyLimits.cloudflare,
-      pollinationsDaily: config.dailyLimits.pollinations,
-      comfyUiDaily: config.dailyLimits.comfyui,
-      note: 'Request-count limits, not dollar-spend estimates.',
-    },
     network: {
       checked: false,
       note: 'Doctor validates local configuration only; provider connectivity and credentials are not tested to avoid unexpected network calls or generation charges.',

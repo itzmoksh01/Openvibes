@@ -16,7 +16,7 @@ It is **not yet a production-certified or multi-tenant service**. It is suitable
 |---|---|
 | ComfyUI network boundary | Loopback-only by default; remote use requires explicit opt-in and HTTPS. |
 | ComfyUI cancellation | Running cancellation now sends the specific prompt ID rather than requesting a global interrupt. |
-| Resource admission | Two active and four queued generation operations per MCP process; overflow is rejected. |
+| Resource admission | Two active and four queued generation operations per MCP process; SQLite UTC daily per-provider request caps are shared across processes using the same data directory; overflow is rejected. |
 | Provider input limits | Option maps are limited by key pattern, value length/range, and number of entries; ComfyUI workflow payloads are capped at 10 MiB. |
 | ComfyUI response safety | Queue JSON is read through a bounded response reader; max media response reduced to 256 MiB. |
 | Package hygiene | Published package includes runtime source output only, not compiled test files; the package smoke test asserts the exclusion. |
@@ -48,8 +48,8 @@ It is **not yet a production-certified or multi-tenant service**. It is suitable
 | Priority | Gap | Why it matters | Required follow-up |
 |---|---|---|---|
 | High | No end-user authentication, authorization, or tenant isolation | STDIO is a local trust model; it is not safe as a shared server boundary | Keep deployment local. If service mode is required, design separate identity, authorization, isolated secrets/storage, per-tenant quotas, network policy, and audit trail first. |
-| High | No application-enforced provider spend budgets | A valid user key can still spend the provider account balance | Set account-level limits/alerts and scoped keys at providers. Consider per-provider request quotas and hard local budgets before broader release. |
-| High | No automatic retention/cleanup policy | Prompts, SQLite records, and media can grow indefinitely and contain sensitive content | Define retention, deletion semantics, disk quotas, and safe database/WAL/media cleanup. |
+| High | No exact application-enforced USD spend meter | Model pricing, token counts, steps, image dimensions and Pollinations Pollen rates vary; a generic request counter cannot calculate actual cost | Daily per-provider request caps are enforced locally, but they are not dollar budgets. Set provider-side account budgets/alerts and least-privilege keys; integrate verified metering only when provider usage data is available. |
+| Medium | No automatic retention schedule or disk quota | Prompts, SQLite records, and media can grow indefinitely and contain sensitive content | A manual preview-first cleanup command is available. Choose a retention period and schedule it externally if automation is required; define disk quotas and backup retention. |
 | High | No encryption at application layer or tamper-proof audit log | Local prompts/media are readable by the OS account; actions are not independently auditable | Use encrypted disks/backups. Add structured security events and auditable retention if deployment policy requires them. |
 | Medium | Per-process concurrency only | Multiple MCP hosts/processes can exceed a single GPU's or account's capacity | Add shared scheduler/lock or provider-aware quotas only if multi-process contention is a real deployment requirement. |
 | Medium | Media buffering before persistence | Accepted large media responses consume substantial RAM | Move large media downloads to bounded streaming-to-temp-file persistence with incremental hashing. |
@@ -64,3 +64,14 @@ A service deployment should not be approved until it has authenticated callers, 
 ## Final disposition
 
 **Current disposition: controlled local developer-tool beta; not production-certified.** The code changes in this review improve network boundaries, cancellation correctness, resource admission, package contents, and documentation. The remaining gates are explicit; a successful CI or CodeQL run alone is not evidence that live provider credentials, billing behavior, host configuration, or deployment security have been validated.
+
+
+## Additional controls delivered after the initial review
+
+- SQLite schema v2 stores per-provider request counts by UTC date.
+- Cloudflare and Pollinations default to 20 generation/text requests per UTC day; ComfyUI requests are counted but unlimited unless configured.
+- Daily counters are reserved transactionally immediately before provider calls and shared by Openvibes processes using the same SQLite file.
+- `openvibes usage` and `openvibes_usage_status` report current counts without exposing credentials.
+- `openvibes cleanup --older-than-days N` is preview-only by default; `--yes` permanently deletes selected database rows and only media files under the configured output directory.
+
+These safeguards do not provide a USD spend guarantee, automatic retention scheduling, application-level encryption, or cross-machine quotas.

@@ -11,10 +11,13 @@
 - [x] Automatic MCP client setup for Muse Code, Antigravity, Codex, Claude Code and Zed.
 - [x] Model licensing and video workflow setup documentation.
 - [x] Meta Vibes vs paid Muse Image API feasibility distinction.
-- [ ] Install dependencies and verify build against the current MCP SDK.
-- [ ] MCP Inspector protocol test.
+- [x] Install dependencies and verify build against the pinned MCP SDK in the CI matrix.
+- [x] MCP STDIO initialize, tools/list and mocked local generation protocol smoke test.
 - [ ] End-to-end client connection tests on Windows, macOS and Linux.
 - [ ] Test against a live ComfyUI instance and representative image/video API workflows.
 - [ ] Official Meta unattended API/authorization feasibility review.
 - [ ] Real Meta generation tests if Meta authorizes a supported route.
+- [x] Shared SQLite UTC daily per-provider request quotas with usage reporting.
+- [x] Manual preview-first retention cleanup for job/asset records and eligible media.
+- [ ] MCP Inspector interactive test and live provider/ComfyUI/client acceptance tests.
 - [ ] Verified npm publication and release automation.
