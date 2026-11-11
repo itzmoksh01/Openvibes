@@ -34,7 +34,7 @@ Openvibes is independent and is not affiliated with, endorsed by, sponsored by, 
 
 Requirements: Node.js 22.13+, npm 10+, Git.
 
-The npm registry package has not been published or verified yet. Install from the public GitHub repository:
+The npm registry package has not been published or verified yet. The owner-only OIDC setup and release sequence are documented in [npm Trusted Publishing](docs/NPM-TRUSTED-PUBLISHING.md). Install from the public GitHub repository:
 
 ```bash
 npm install --global github:itzmoksh01/Openvibes

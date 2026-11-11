@@ -59,6 +59,9 @@ Run only with a user-owned account and an explicit spend limit. Never place secr
 - [ ] Update version, changelog and migration notes.
 - [ ] Confirm provider prices, free allowances, model availability and model licenses against current official documentation.
 - [ ] Publish only from a reviewed tag with npm trusted publishing configured; use Node.js 24 and npm 11.5.1 or newer, and verify provenance.
+  - [x] Release workflow uses GitHub OIDC permissions, Node 24, GitHub-hosted runners and disables npm cache.
+  - [x] Exact npm trusted publisher fields and 48-hour first-publish window are documented in [NPM-TRUSTED-PUBLISHING.md](NPM-TRUSTED-PUBLISHING.md).
+  - [ ] Package owner configures the trusted publisher on npmjs.com and confirms the `openvibes-mcp` package name before release.
 - [ ] Verify the published tarball installs globally on a clean machine.
 - [ ] Tag the exact tested commit and retain CI evidence.
 - [ ] Publish known limitations and rollback instructions.
